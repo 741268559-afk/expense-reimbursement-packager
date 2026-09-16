@@ -296,6 +296,8 @@ def convert_heic_image(image_path, dirs):
     result = subprocess.run(
         [sips, "-s", "format", "png", str(image_path), "--out", str(output)],
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
     )
     if result.returncode != 0 or not output.exists():
@@ -1415,4 +1417,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()

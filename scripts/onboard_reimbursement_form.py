@@ -23,7 +23,7 @@ def parse_args():
 
 
 def run(cmd):
-    result = subprocess.run(cmd, text=True, capture_output=True)
+    result = subprocess.run(cmd, text=True, encoding="utf-8", errors="replace", capture_output=True)
     if result.returncode != 0:
         if result.stdout:
             print(result.stdout, file=sys.stderr, end="")
@@ -73,7 +73,13 @@ def main():
         "--out",
         str(validation),
     ]
-    validation_result = subprocess.run(validation_cmd, text=True, capture_output=True)
+    validation_result = subprocess.run(
+        validation_cmd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
     if validation.exists():
         validation_report = json.loads(validation.read_text(encoding="utf-8"))
     else:
@@ -92,7 +98,13 @@ def main():
         "--out",
         str(readiness),
     ]
-    readiness_result = subprocess.run(readiness_cmd, text=True, capture_output=True)
+    readiness_result = subprocess.run(
+        readiness_cmd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
     if readiness.exists():
         readiness_report = json.loads(readiness.read_text(encoding="utf-8"))
     else:
@@ -142,7 +154,13 @@ def main():
         ]
         for invoice_input in args.sample_invoice_input:
             package_cmd.extend(["--invoice-input", str(Path(invoice_input).expanduser().resolve())])
-        sample_result = subprocess.run(package_cmd, text=True, capture_output=True)
+        sample_result = subprocess.run(
+            package_cmd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+        )
         report["sample_validation"] = {
             "output_folder": str(sample_out),
             "returncode": sample_result.returncode,
@@ -168,4 +186,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()

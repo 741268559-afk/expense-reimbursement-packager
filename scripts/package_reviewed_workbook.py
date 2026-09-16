@@ -174,4 +174,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()

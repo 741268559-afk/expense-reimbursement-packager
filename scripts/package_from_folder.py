@@ -41,7 +41,14 @@ def parse_args():
 
 
 def run(cmd):
-    result = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    result = subprocess.run(
+        cmd,
+        check=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
     if result.stderr:
         print(result.stderr, file=sys.stderr, end="")
     if result.stdout:
@@ -50,7 +57,13 @@ def run(cmd):
 
 
 def run_no_check(cmd):
-    result = subprocess.run(cmd, text=True, capture_output=True)
+    result = subprocess.run(
+        cmd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
     if result.stderr:
         print(result.stderr, file=sys.stderr, end="")
     if result.stdout:
@@ -840,4 +853,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()

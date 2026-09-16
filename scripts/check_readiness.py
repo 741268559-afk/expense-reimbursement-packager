@@ -27,6 +27,7 @@ REQUIRED_SCRIPTS = [
     "platform_smoke_test.py",
     "preflight_inputs.py",
     "prepare_expense_confirmation.py",
+    "runtime_utils.py",
     "self_test.py",
     "validate_form_config.py",
     "verify_reimbursement_pack.py",
@@ -53,7 +54,7 @@ def add_check(checks, name, status, details=""):
 
 
 def run_json_command(cmd):
-    result = subprocess.run(cmd, text=True, capture_output=True)
+    result = subprocess.run(cmd, text=True, encoding="utf-8", errors="replace", capture_output=True)
     output = result.stdout.strip()
     data = {}
     if output:
@@ -197,4 +198,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()

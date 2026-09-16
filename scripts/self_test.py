@@ -21,7 +21,14 @@ def parse_args():
 
 
 def run(cmd, cwd=None):
-    result = subprocess.run(cmd, text=True, capture_output=True, cwd=cwd)
+    result = subprocess.run(
+        cmd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        cwd=cwd,
+    )
     if result.returncode != 0:
         if result.stdout:
             print(result.stdout, file=sys.stderr, end="")
@@ -725,6 +732,8 @@ def main():
             str(manifest),
         ],
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
     )
     tamper_verification = json.loads((pack / "verification.json").read_text(encoding="utf-8"))
@@ -773,4 +782,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from runtime_utils import configure_utf8_stdio
+
+    configure_utf8_stdio()
     main()
