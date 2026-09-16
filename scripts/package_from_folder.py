@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument("--skip-preflight", action="store_true", help="Skip writing the automatic input preflight report.")
     parser.add_argument("--stop-on-preflight-warnings", action="store_true", help="Stop before OCR/building when preflight_report.json has warnings.")
     parser.add_argument("--recursive", action="store_true", help="Scan folders recursively.")
-    parser.add_argument("--ocr", choices=["auto", "apple-vision", "none"], default="auto", help="OCR mode for image screenshots.")
+    parser.add_argument("--ocr", choices=["auto", "apple-vision", "tesseract", "none"], default="auto", help="OCR mode for screenshots and image invoices.")
     parser.add_argument("--categories", default="交通费,餐饮费,设备费,场地费,演员费,其他费用", help="Comma-separated category list.")
     parser.add_argument("--review-policy", choices=["auto", "always", "never"], default="auto", help="auto stops when rows need review; always drafts only; never stops for review.")
     parser.add_argument("--form-template", help="Optional 费用报销单 Excel template to fill. May be omitted when --form-cells JSON contains template.")
@@ -98,7 +98,7 @@ def resolve_profile_source(args):
         return path, "EXPENSE_REIMBURSEMENT_PROFILE"
     candidates = [
         Path.cwd().resolve() / "03_profile" / "reimbursement_profile.json",
-        default_codex_home() / "expense-reimbursement" / "reimbursement_profile.json",
+        *[folder / "expense-reimbursement" / "reimbursement_profile.json" for folder in default_config_dirs()],
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -466,11 +466,32 @@ def resolve_config_path(value, base_dir=None):
     return str(path.resolve())
 
 
-def default_codex_home():
-    value = os.environ.get("CODEX_HOME")
-    if value:
-        return Path(value).expanduser().resolve()
-    return (Path.home() / ".codex").resolve()
+def default_config_dirs():
+    candidates = []
+    explicit = os.environ.get("EXPENSE_REIMBURSEMENT_HOME")
+    if explicit:
+        candidates.append(Path(explicit).expanduser())
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            candidates.append(Path(appdata) / "expense-reimbursement-packager")
+    elif sys.platform == "darwin":
+        candidates.append(Path.home() / "Library" / "Application Support" / "expense-reimbursement-packager")
+    else:
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        candidates.append(Path(xdg).expanduser() / "expense-reimbursement-packager" if xdg else Path.home() / ".config" / "expense-reimbursement-packager")
+
+    codex_home = os.environ.get("CODEX_HOME")
+    candidates.append(Path(codex_home).expanduser() if codex_home else Path.home() / ".codex")
+    unique = []
+    seen = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        key = str(resolved)
+        if key not in seen:
+            seen.add(key)
+            unique.append(resolved)
+    return unique
 
 
 def form_cells_from_dir(folder):
@@ -505,7 +526,7 @@ def resolve_form_cells_source(args):
     candidates = [
         cwd / "form_cells.json",
         cwd / "02_form_template_config" / "form_cells.json",
-        default_codex_home() / "expense-reimbursement" / "form_cells.json",
+        *[folder / "expense-reimbursement" / "form_cells.json" for folder in default_config_dirs()],
     ]
     seen = set()
     for candidate in candidates:
@@ -627,7 +648,7 @@ def export_manifest_review_workbook(script_dir, manifest_path, out_dir):
     return review_workbook
 
 
-def run_invoice_coverage(script_dir, manifest_path, out_dir):
+def run_invoice_coverage(script_dir, manifest_path, out_dir, ocr="auto"):
     coverage_path = out_dir / "invoice_coverage.json"
     markdown_path = out_dir / "发票缺口清单.md"
     run([
@@ -637,6 +658,7 @@ def run_invoice_coverage(script_dir, manifest_path, out_dir):
         "--out", str(coverage_path),
         "--markdown-out", str(markdown_path),
         "--update-manifest",
+        "--ocr", ocr,
     ])
     return coverage_path, json.loads(coverage_path.read_text(encoding="utf-8"))
 
@@ -746,7 +768,7 @@ def main():
         }, ensure_ascii=False, indent=2))
         return
 
-    coverage_path, coverage = run_invoice_coverage(script_dir, manifest_path, out_dir)
+    coverage_path, coverage = run_invoice_coverage(script_dir, manifest_path, out_dir, args.ocr)
     coverage_status = coverage.get("status")
     run_workflow_reports(script_dir, manifest_path, out_dir)
     _, current_approval_issues = write_approval_gap_report(manifest_path, out_dir)

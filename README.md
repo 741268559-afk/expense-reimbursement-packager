@@ -1,6 +1,6 @@
 # Expense Reimbursement Packager Skill
 
-一个面向 Codex 的财务报销整理 Skill。它可以从支付截图、发票、行程单和 Excel 费用报销单模板中生成可复核、可打印、可归档的报销材料包。
+一个可供 Codex、WorkBuddy、Claude Code 及其他支持 Agent Skills 或终端脚本的智能体使用的财务报销整理工具包。它可以从支付截图、发票、行程单和 Excel 费用报销单模板中生成可复核、可打印、可归档的报销材料包。
 
 项目默认适配中文报销流程和钉钉审批字段，但分类、发票要求、审批要求及费用报销单模板均可配置。
 
@@ -16,32 +16,51 @@
 - 生成明细表、三张一页截图、单张发票、一键打印 PDF、财务提交文件夹和审计摘要。
 - 对金额、公式、发票覆盖、附件页数、连续页码和最终 ZIP 执行自动校验。
 
+## Agent 与系统支持
+
+- Agent：Codex、WorkBuddy 个人版/企业版、Claude Code，以及能够读取 `SKILL.md` 并执行 Python 的其他 Agent。
+- 系统：Windows 10/11、macOS；核心 Python 流程也可在 Linux 使用。
+- OCR：macOS Apple Vision，或 Windows/macOS Tesseract；没有 OCR 时仍可通过文件名和 Excel 审核流程使用。
+
+发布页提供两个包：
+
+- `universal`：采用保守的 Agent Skills frontmatter，适合 Codex、Claude Code 和其他兼容宿主。
+- `workbuddy`：包含 WorkBuddy 要求的中英文字段、版本和作者信息，并包含企业版需要的 `manifest.yaml`。
+
 ## 安装
 
-需要 Python 3.10 或更高版本。
+需要 Python 3.10 或更高版本。下载或克隆仓库后，使用同一个跨平台初始化命令：
 
 ```bash
-git clone https://github.com/741268559-afk/expense-reimbursement-packager.git ~/.codex/skills/expense-reimbursement-packager
-python3 -m pip install -r ~/.codex/skills/expense-reimbursement-packager/requirements.txt
+git clone https://github.com/741268559-afk/expense-reimbursement-packager.git
+cd expense-reimbursement-packager
+python scripts/bootstrap.py
 ```
 
-重新打开 Codex 后，可通过 `$expense-reimbursement-packager` 显式调用；符合描述的报销任务也可以自动触发该 Skill。
+Windows PowerShell 可以把第一条命令写成 `py -3 scripts\bootstrap.py`。初始化结果会返回虚拟环境 Python 的完整路径。
 
-macOS 上如已安装 Swift，Skill 可以使用 Apple Vision 做本地 OCR。其他平台仍可使用文件名解析、手工 Manifest 或 Excel 审核流程。
+### Codex 与其他 Agent Skills 宿主
+
+把 universal ZIP 解压到宿主的 Skill 目录，或直接克隆到该目录。Codex 的示例位置是 `~/.codex/skills/expense-reimbursement-packager`，其他宿主使用各自的 Skill 目录。
+
+### WorkBuddy
+
+在 WorkBuddy 的“添加技能”中选择“上传技能”，导入 Release 中的 `expense-reimbursement-packager-workbuddy-*.zip`。企业版也可在 Skill 管理中上传同一个 ZIP。
+
+WorkBuddy 官方导入规范见 [Skill 开发文档](https://open.workbuddy.cn/docs/skill)；平台操作见 [技能安装文档](https://www.workbuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Skills-Market)。
 
 ## 快速验证
 
 先运行合成数据自测。它不会读取真实报销文件：
 
 ```bash
-cd ~/.codex/skills/expense-reimbursement-packager
-python3 scripts/self_test.py --out /tmp/expense-reimbursement-self-test
+python scripts/self_test.py --out expense-reimbursement-self-test
 ```
 
 轻量环境检查：
 
 ```bash
-python3 scripts/check_readiness.py --out /tmp/reimbursement-readiness.json
+python scripts/check_readiness.py --out reimbursement-readiness.json
 ```
 
 未配置费用报销单模板时，轻量检查返回 `needs_form_template` 是预期状态；明细表和打印材料仍可生成。
@@ -85,6 +104,16 @@ python3 scripts/package_from_folder.py \
 
 详细字段、模板接入和两阶段审核流程见 [SKILL.md](SKILL.md) 与 [references/workflow.md](references/workflow.md)。
 
+Windows、macOS、OCR 和配置目录说明见 [references/platforms.md](references/platforms.md)。
+
+## 构建发布包
+
+```bash
+python scripts/build_release_packages.py --out dist
+```
+
+该命令同时生成 universal ZIP、WorkBuddy ZIP 和 SHA-256 校验文件。
+
 ## 数据与合规边界
 
 - 脚本默认在本地处理文件，不包含上传真实票据的代码。
@@ -98,9 +127,13 @@ python3 scripts/package_from_folder.py \
 ```text
 expense-reimbursement-packager/
 |-- SKILL.md
+|-- AGENTS.md
+|-- CLAUDE.md
+|-- manifest.yaml
 |-- agents/openai.yaml
+|-- adapters/workbuddy/
 |-- scripts/
-|-- references/workflow.md
+|-- references/
 |-- assets/
 |-- requirements.txt
 `-- LICENSE

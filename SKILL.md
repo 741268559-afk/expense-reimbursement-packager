@@ -6,6 +6,8 @@ license: MIT
 
 # Expense Reimbursement Packager
 
+This Skill is host-neutral. Run its Python scripts from the Skill directory with the active host's Python interpreter. For Windows, macOS, WorkBuddy, and other Agent installation/runtime details, read `references/platforms.md` (WorkBuddy may expose it as `@references/platforms.md`).
+
 ## Core Workflow
 
 1. Collect all payment screenshots, invoices, ride itineraries, and other invoice attachments. Keep ride itineraries printable but exclude them from invoice value.
@@ -60,7 +62,7 @@ python scripts/package_from_folder.py --input /path/to/source-folder --project-n
 
 The one-command script inspects the form template, adds recommended `reimbursement_form` mappings to the manifest, then builds the filled form when the mappings are usable. For a fixed team template, pass a reviewed mapping with `--form-cells /path/to/form_cells.json`; if that JSON contains `template`, `--form-template` may be omitted.
 
-If `--form-cells` is omitted, `package_from_folder.py` tries to auto-detect `form_cells.json` from `--form-config-dir`, `EXPENSE_REIMBURSEMENT_FORM_CELLS`, `EXPENSE_REIMBURSEMENT_FORM_CONFIG_DIR`, the current folder, `./02_form_template_config/`, or `${CODEX_HOME:-~/.codex}/expense-reimbursement/`. It records the chosen path in `package_result.json` as `form_cells`.
+If `--form-cells` is omitted, `package_from_folder.py` tries to auto-detect `form_cells.json` from explicit arguments, environment variables, the current folder, platform configuration folders, and the legacy Codex configuration folder. Set `EXPENSE_REIMBURSEMENT_HOME` for a host-neutral shared location. It records the chosen path in `package_result.json` as `form_cells`.
 
 `--input` can be a folder or a `.zip` archive. If invoices are in a separate folder, file, or `.zip`, add one or more `--invoice-input` arguments:
 
@@ -124,7 +126,7 @@ The script creates:
 - `draft_manifest_review.xlsx` when rows need review, so the team can correct date, time, purpose, category, amount, and notes in Excel before applying the edits back to JSON
 - `verification.json` when `package_from_folder.py` runs verification after building
 
-Use the bundled script for deterministic output once the manifest is ready. Use Codex vision/OCR and spreadsheet tools to build or refine the manifest.
+Use the bundled script for deterministic output once the manifest is ready. Host vision tools may help review screenshots, but the manifest and generated files must still pass the deterministic checks.
 
 To verify a local installation before processing real reimbursements, run:
 

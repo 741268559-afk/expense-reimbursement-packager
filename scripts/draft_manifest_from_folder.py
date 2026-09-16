@@ -2,11 +2,11 @@
 import argparse
 import json
 import re
-import shutil
-import subprocess
 import sys
 from decimal import Decimal
 from pathlib import Path
+
+from ocr_utils import OCR_MODES, run_ocr_images
 
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument("--reimburser", required=True, help="Person being reimbursed.")
     parser.add_argument("--out", required=True, help="Output manifest JSON path.")
     parser.add_argument("--recursive", action="store_true", help="Scan folders recursively.")
-    parser.add_argument("--ocr", choices=["auto", "apple-vision", "none"], default="auto", help="OCR mode for image screenshots.")
+    parser.add_argument("--ocr", choices=OCR_MODES, default="auto", help="OCR mode for image screenshots.")
     parser.add_argument("--categories", default="交通费,餐饮费,设备费,场地费,演员费,其他费用", help="Comma-separated category list.")
     parser.add_argument("--invoice-policy", choices=["full_amount", "none"], default="full_amount", help="Invoice coverage policy. full_amount requires invoices to cover the reimbursement total.")
     parser.add_argument("--approval-policy", choices=["required", "none"], default="required", help="Whether DingTalk metadata and approved amount are required before final packaging.")
@@ -74,17 +74,6 @@ def unique_paths(paths):
         seen.add(key)
         unique.append(path)
     return unique
-
-
-def run_apple_vision_ocr(images, script_dir):
-    swift = shutil.which("swift")
-    if not swift or not images:
-        return {}
-    script = script_dir / "vision_ocr.swift"
-    cmd = [swift, str(script), *[str(p) for p in images]]
-    result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-    data = json.loads(result.stdout)
-    return {Path(item["path"]).resolve(): item for item in data}
 
 
 def extract_amount(text):
@@ -167,11 +156,11 @@ def main():
     expense_images = [p for p in image_files if p not in invoice_files and p not in supporting_document_files]
 
     ocr_by_path = {}
-    if args.ocr in {"auto", "apple-vision"}:
+    if args.ocr != "none":
         try:
-            ocr_by_path = run_apple_vision_ocr(expense_images, Path(__file__).resolve().parent)
+            ocr_by_path = run_ocr_images(expense_images, args.ocr, Path(__file__).resolve().parent)
         except Exception as exc:
-            if args.ocr == "apple-vision":
+            if args.ocr != "auto":
                 raise
             print(f"OCR unavailable, drafting from filenames only: {exc}", file=sys.stderr)
 

@@ -3,13 +3,13 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
-import subprocess
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from pypdf import PdfReader
+
+from ocr_utils import OCR_MODES, run_ocr_images
 
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("--out", required=True, help="Invoice coverage JSON output path.")
     parser.add_argument("--markdown-out", help="Human-readable gap report. Defaults beside --out as 发票缺口清单.md.")
     parser.add_argument("--update-manifest", action="store_true", help="Write invoice_items and invoice_coverage back to the manifest.")
+    parser.add_argument("--ocr", choices=OCR_MODES, default="auto", help="OCR mode for image invoices.")
     return parser.parse_args()
 
 
@@ -47,23 +48,6 @@ def file_hash(path):
 
 def read_pdf_text(path):
     return "\n".join((page.extract_text() or "") for page in PdfReader(str(path)).pages)
-
-
-def run_apple_vision_ocr(images, script_dir):
-    swift = shutil.which("swift")
-    if not swift or not images:
-        return {}
-    result = subprocess.run(
-        [swift, str(script_dir / "vision_ocr.swift"), *[str(path) for path in images]],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
-    data = json.loads(result.stdout)
-    return {
-        str(Path(item["path"]).resolve()): "\n".join(line.get("text", "") for line in item.get("lines", []))
-        for item in data
-    }
 
 
 def parse_candidate(value):
@@ -297,8 +281,14 @@ def main():
 
     image_paths = [Path(item["path"]) for item in items if Path(item["path"]).suffix.lower() in IMAGE_EXTS and Path(item["path"]).exists()]
     try:
-        image_text = run_apple_vision_ocr(image_paths, Path(__file__).resolve().parent)
+        raw_image_text = run_ocr_images(image_paths, args.ocr, Path(__file__).resolve().parent)
+        image_text = {
+            str(path.resolve()): "\n".join(line.get("text", "") for line in item.get("lines", []))
+            for path, item in raw_image_text.items()
+        }
     except Exception:
+        if args.ocr != "auto":
+            raise
         image_text = {}
 
     processed = []

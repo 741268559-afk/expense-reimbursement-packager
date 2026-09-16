@@ -78,7 +78,7 @@ Create a finance-ready pack with:
 14. Reusable profile:
    - A profile may provide only stable defaults such as `reimburser`, `payee`, `invoice_entity`, and `company`.
    - Never reuse project-specific `dingding_number` or `approved_amount` from a profile.
-   - Discover `reimbursement_profile.json` from `--profile`, `EXPENSE_REIMBURSEMENT_PROFILE`, `./03_profile/`, or `${CODEX_HOME:-~/.codex}/expense-reimbursement/`.
+   - Discover `reimbursement_profile.json` from `--profile`, `EXPENSE_REIMBURSEMENT_PROFILE`, `./03_profile/`, platform configuration folders, or the legacy `${CODEX_HOME:-~/.codex}/expense-reimbursement/` location.
 15. Final audit summary:
    - Write `报销审计摘要.md` with expense count, voucher range, reimbursement total, DingTalk amount, category totals, invoice coverage, replacement amount, exception count, print pages, and verification status.
    - State explicitly that file/OCR checks do not replace tax-platform invoice-authenticity verification.
@@ -150,7 +150,7 @@ When the user provides a folder rather than a prepared manifest:
 4. If original invoices are in a separate file, folder, or `.zip`, pass them with one or more `--invoice-input <path>` arguments. These become top-level `invoices` unless manually matched to specific entries later.
 5. If a `费用报销单` Excel template is available, pass it with `--form-template <template.xlsx>`. The script writes `form_inspection.json`, adds recommended mappings, and builds the filled form when usable.
 6. For a fixed team form template, pass the reviewed `form_cells.json` through `--form-cells` so the one-command run uses the approved template, sheet, and cell mapping instead of only the recommendation.
-7. When `--form-cells` is omitted, `package_from_folder.py` auto-detects `form_cells.json` from `--form-config-dir`, `EXPENSE_REIMBURSEMENT_FORM_CELLS`, `EXPENSE_REIMBURSEMENT_FORM_CONFIG_DIR`, the current folder, `./02_form_template_config/`, or `${CODEX_HOME:-~/.codex}/expense-reimbursement/`. Check `package_result.json.form_cells` to confirm which config was used.
+7. When `--form-cells` is omitted, `package_from_folder.py` auto-detects `form_cells.json` from `--form-config-dir`, environment variables, the current folder, `./02_form_template_config/`, platform configuration folders, or the legacy Codex location. Check `package_result.json.form_cells` to confirm which config was used.
 8. If it stops with `needs_review`, open `draft_manifest_review.xlsx`, correct blank fields and rows marked `NEEDS_REVIEW`, then finish the pack:
 
 ```bash
@@ -163,7 +163,7 @@ Also inspect any `form_inspection.json` when a `费用报销单` template is inv
 11. Keep replacement invoices at top level with `role: replacement`. Original invoices may be attached to entries when there is an obvious one-to-one match; otherwise leave them top level.
 12. Use `scripts/draft_manifest_from_folder.py` directly only when you need a draft-only pass. Run `scripts/prepare_expense_confirmation.py`, then `scripts/analyze_invoice_coverage.py`, before a manual build.
 
-The folder draft script can use Apple Vision OCR on macOS through `scripts/vision_ocr.swift`. OCR is best-effort. Do not trust it blindly for money, dates, or categories.
+The folder draft and invoice-analysis scripts support `--ocr auto`, `apple-vision`, `tesseract`, or `none`. Auto mode prefers Apple Vision on macOS and otherwise uses Tesseract when available on Windows or macOS. OCR is best-effort. Do not trust it blindly for money, dates, or categories. Read `references/platforms.md` for installation and environment variables.
 
 `package_from_folder.py` runs preflight automatically before building unless `--skip-preflight` is passed. Add `--stop-on-preflight-warnings` when warnings should stop the run. It runs verification automatically after building unless `--skip-verify` is passed.
 

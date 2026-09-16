@@ -2,22 +2,29 @@
 import argparse
 import importlib
 import json
-import shutil
+import platform
 import subprocess
 import sys
 from pathlib import Path
 
+from ocr_utils import backend_status
+
 
 REQUIRED_MODULES = ["openpyxl", "PIL", "pypdf", "reportlab"]
+OPTIONAL_MODULES = ["pillow_heif"]
 REQUIRED_SCRIPTS = [
     "analyze_invoice_coverage.py",
+    "bootstrap.py",
+    "build_release_packages.py",
     "build_reimbursement_pack.py",
     "draft_manifest_from_folder.py",
     "inspect_reimbursement_form.py",
     "manifest_review_workbook.py",
+    "ocr_utils.py",
     "onboard_reimbursement_form.py",
     "package_from_folder.py",
     "package_reviewed_workbook.py",
+    "platform_smoke_test.py",
     "preflight_inputs.py",
     "prepare_expense_confirmation.py",
     "self_test.py",
@@ -86,11 +93,41 @@ def main():
     if missing_modules:
         errors.append(f"Missing required Python module(s): {', '.join(missing_modules)}")
 
-    if shutil.which("swift"):
-        add_check(checks, "apple_vision_ocr", "passed", "swift is available for macOS OCR.")
+    for module in OPTIONAL_MODULES:
+        try:
+            importlib.import_module(module)
+            add_check(checks, f"python_module:{module}", "passed")
+        except Exception as exc:
+            warnings.append(f"Optional module {module} is unavailable; HEIC/HEIF support may be limited: {exc}")
+            add_check(checks, f"python_module:{module}", "warning", str(exc))
+
+    system = platform.system()
+    add_check(checks, "platform", "passed", f"{system} / Python {platform.python_version()}")
+    ocr = backend_status(script_dir)
+    if system == "Darwin":
+        if ocr["apple_vision"]:
+            add_check(checks, "apple_vision_ocr", "passed", "Swift and Apple Vision OCR are available.")
+        else:
+            add_check(checks, "apple_vision_ocr", "warning", "Apple Vision OCR is unavailable.")
     else:
-        warnings.append("Swift is not available; Apple Vision OCR will be skipped, but filename fallback and manual review still work.")
-        add_check(checks, "apple_vision_ocr", "warning", "swift not found.")
+        add_check(checks, "apple_vision_ocr", "skipped", "Apple Vision is macOS-only.")
+    if ocr["tesseract"]:
+        language_text = ", ".join(ocr["tesseract_languages"]) or "languages not reported"
+        if "chi_sim" in ocr["tesseract_languages"]:
+            add_check(checks, "tesseract_ocr", "passed", f"{ocr['tesseract']} ({language_text})")
+        else:
+            warnings.append("Tesseract is installed but the chi_sim language pack is missing; Chinese OCR will be limited.")
+            add_check(checks, "tesseract_ocr", "warning", f"{ocr['tesseract']} ({language_text})")
+    else:
+        add_check(checks, "tesseract_ocr", "warning", "Tesseract was not found.")
+    if ocr["auto_backend"] == "none":
+        warnings.append(
+            "No automatic OCR backend is available; filename fallback and manual Excel review still work. "
+            "Install Tesseract on Windows/macOS or Swift on macOS for local OCR."
+        )
+        add_check(checks, "ocr_auto_backend", "warning", "none")
+    else:
+        add_check(checks, "ocr_auto_backend", "passed", ocr["auto_backend"])
 
     form_validation = {}
     if args.form_cells:

@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument("--profile", help="Optional reimbursement profile JSON path or JSON object.")
     parser.add_argument("--approval-metadata", help="DingTalk fields transcribed from the approval screenshot, as a JSON path or JSON object.")
     parser.add_argument("--approval-policy", choices=["required", "none"], help="Optional approval gate override; defaults to the draft manifest policy.")
+    parser.add_argument("--ocr", choices=["auto", "apple-vision", "tesseract", "none"], default="auto", help="OCR mode for image invoices.")
     parser.add_argument("--skip-verify", action="store_true", help="Build the pack but skip automatic verification.")
     return parser.parse_args()
 
@@ -100,7 +101,7 @@ def main():
         }, ensure_ascii=False, indent=2))
         return
 
-    coverage_path, coverage = run_invoice_coverage(script_dir, reviewed_manifest, out_dir)
+    coverage_path, coverage = run_invoice_coverage(script_dir, reviewed_manifest, out_dir, args.ocr)
     coverage_status = coverage.get("status")
     run_workflow_reports(script_dir, reviewed_manifest, out_dir)
     _, current_approval_issues = write_approval_gap_report(reviewed_manifest, out_dir)

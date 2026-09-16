@@ -275,16 +275,34 @@ def convert_heic_image(image_path, dirs):
     output = dirs["converted"] / converted_image_name(image_path)
     if output.exists():
         return output
+    pillow_error = ""
+    try:
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+        with PILImage.open(image_path) as image:
+            image.convert("RGB").save(output, "PNG")
+        if output.exists():
+            return output
+    except Exception as exc:
+        pillow_error = str(exc)
+
     sips = shutil.which("sips")
     if not sips:
-        raise SystemExit(f"HEIC/HEIF image requires conversion but macOS sips was not found: {image_path}")
+        raise SystemExit(
+            f"HEIC/HEIF conversion failed for {image_path}. Install pillow-heif on Windows/macOS. "
+            f"macOS can also use sips. Pillow error: {pillow_error or 'pillow-heif unavailable'}"
+        )
     result = subprocess.run(
         [sips, "-s", "format", "png", str(image_path), "--out", str(output)],
         text=True,
         capture_output=True,
     )
     if result.returncode != 0 or not output.exists():
-        raise SystemExit(f"Failed to convert HEIC/HEIF image to PNG: {image_path}\n{result.stderr.strip()}")
+        raise SystemExit(
+            f"Failed to convert HEIC/HEIF image to PNG: {image_path}\n"
+            f"Pillow: {pillow_error or 'not used'}\nsips: {result.stderr.strip()}"
+        )
     return output
 
 
