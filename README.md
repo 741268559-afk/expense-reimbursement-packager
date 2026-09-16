@@ -21,7 +21,7 @@
 需要 Python 3.10 或更高版本。
 
 ```bash
-git clone <repository-url> ~/.codex/skills/expense-reimbursement-packager
+git clone https://github.com/741268559-afk/expense-reimbursement-packager.git ~/.codex/skills/expense-reimbursement-packager
 python3 -m pip install -r ~/.codex/skills/expense-reimbursement-packager/requirements.txt
 ```
 
