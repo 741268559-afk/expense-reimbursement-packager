@@ -15,6 +15,7 @@ OPTIONAL_MODULES = ["pillow_heif"]
 REQUIRED_SCRIPTS = [
     "analyze_invoice_coverage.py",
     "bootstrap.py",
+    "build_dingtalk_submission_pack.py",
     "build_release_packages.py",
     "build_reimbursement_pack.py",
     "draft_manifest_from_folder.py",

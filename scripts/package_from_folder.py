@@ -19,8 +19,8 @@ def parse_args():
     parser.add_argument("--project-name", required=True, help="Project/shoot name.")
     parser.add_argument("--reimburser", help="Person being reimbursed. May be supplied by --profile.")
     parser.add_argument("--profile", help="Optional reimbursement profile JSON path or JSON object for stable reimburser/payee/invoice-entity defaults.")
-    parser.add_argument("--approval-metadata", help="DingTalk fields transcribed from the approval screenshot, as a JSON path or JSON object.")
-    parser.add_argument("--approval-policy", choices=["required", "none"], default="required", help="required blocks final packaging until DingTalk fields and approved amount are complete; none explicitly waives the gate.")
+    parser.add_argument("--approval-metadata", help="Pre-submission form fields and later DingTalk screenshot fields, as a JSON path or JSON object.")
+    parser.add_argument("--approval-policy", choices=["required", "none"], default="required", help="required allows a provisional DingTalk submission pack but blocks the final finance pack until approval fields and amount are complete; none explicitly waives the gate.")
     parser.add_argument("--out", required=True, help="Output folder for the generated pack.")
     parser.add_argument("--manifest-out", help="Optional path for the draft manifest. Defaults inside --out.")
     parser.add_argument("--preflight-out", help="Optional path for the input preflight report. Defaults inside --out.")
@@ -133,7 +133,7 @@ def apply_profile_and_approval(manifest_path, args, profile, profile_source=None
 
     approval = dict(manifest.get("approval_metadata") or {})
     stable_defaults = profile.get("approval_defaults") or profile.get("stable_defaults") or {}
-    for key in ["payee", "invoice_entity", "company"]:
+    for key in ["reimbursement_type", "payee", "invoice_entity", "company"]:
         if stable_defaults.get(key) not in (None, ""):
             approval[key] = stable_defaults[key]
     explicit = load_json_arg(args.approval_metadata)
@@ -203,10 +203,27 @@ def write_approval_gap_report(manifest_path, out_dir):
         f"- {labels.get(item['field'], item['field'])}: {item['message']}"
         for item in issues
     ) or "- 无"
+    pre_submission_missing = [
+        item for item in issues
+        if item.get("field") in {"reimbursement_type", "payee", "invoice_entity"}
+        and item.get("type") == "missing"
+    ]
+    correction_issues = [
+        item for item in issues
+        if item.get("type") in {"invalid", "mismatch"}
+    ]
+    if correction_issues:
+        stage_status = "需要更正审批信息"
+    elif pre_submission_missing:
+        stage_status = "提交钉钉前需要补充基础字段"
+    elif issues:
+        stage_status = "等待钉钉提交后回填审批编号和金额"
+    else:
+        stage_status = "完整"
     output = Path(out_dir) / "钉钉信息缺口.md"
     output.write_text(
         f"# 钉钉信息缺口\n\n项目：{manifest.get('project_name', '')}\n"
-        f"当前状态：{'需要补充或更正' if issues else '完整'}\n\n## 待处理\n\n{rows}\n",
+        f"当前状态：{stage_status}\n\n## 待处理\n\n{rows}\n",
         encoding="utf-8",
     )
     reports = dict(manifest.get("workflow_reports") or {})
@@ -228,15 +245,31 @@ def run_workflow_reports(script_dir, manifest_path, out_dir):
 
 
 def prerequisite_status(coverage_status, current_approval_issues):
-    if current_approval_issues and coverage_status == "needs_invoices":
-        return "needs_approval_and_invoices"
-    if current_approval_issues and coverage_status == "needs_invoice_review":
-        return "needs_approval_and_invoice_review"
-    if current_approval_issues:
-        return "needs_approval"
     if coverage_status in {"needs_invoices", "needs_invoice_review"}:
         return coverage_status
+    if current_approval_issues:
+        return "needs_approval"
     return ""
+
+
+def approval_is_pre_submission(current_approval_issues):
+    return bool(current_approval_issues) and all(
+        item.get("type") in {"missing", "unconfirmed"}
+        for item in current_approval_issues
+    )
+
+
+def submission_info_issues(manifest):
+    approval = manifest.get("approval_metadata") or {}
+    issues = []
+    for field in ["reimbursement_type", "payee", "invoice_entity"]:
+        if approval.get(field) in (None, ""):
+            issues.append({
+                "field": field,
+                "type": "missing",
+                "message": f"Pre-submission field is missing: {field}",
+            })
+    return issues
 
 
 def refresh_finance_zip(finance_folder, finance_zip):
@@ -292,8 +325,10 @@ def write_package_result(out_dir, status, manifest_path, preflight_path=None, fo
     invoice_gap_path = out_dir / "发票缺口清单.md"
     invoice_coverage = read_json_if_exists(invoice_coverage_path)
     manifest = read_json_if_exists(manifest_path)
+    dingtalk_submission = read_json_if_exists(out_dir / "dingtalk_submission_result.json")
     workflow_reports = manifest.get("workflow_reports") or {}
     current_approval_issues = approval_issues(manifest) if manifest else []
+    current_submission_info_issues = submission_info_issues(manifest) if manifest else []
     expense_form = find_generated(summary, "费用报销单")
     result = {
         "status": status,
@@ -313,6 +348,13 @@ def write_package_result(out_dir, status, manifest_path, preflight_path=None, fo
         "exception_report": workflow_reports.get("expense_exceptions", ""),
         "approval_gap_report": workflow_reports.get("approval_gap", ""),
         "approval_issues": current_approval_issues,
+        "submission_info_issues": current_submission_info_issues,
+        "dingtalk_submission_folder": dingtalk_submission.get("folder", ""),
+        "dingtalk_submission_zip": dingtalk_submission.get("zip", ""),
+        "dingtalk_submission_checklist": dingtalk_submission.get("checklist", ""),
+        "dingtalk_submission_expense_form": dingtalk_submission.get("expense_form", ""),
+        "dingtalk_submission_expense_form_pdf": dingtalk_submission.get("expense_form_pdf", ""),
+        "dingtalk_submission_invoice_pdf": dingtalk_submission.get("invoice_pdf", ""),
         "voucher_count": len(manifest.get("entries", []) or []),
         "verification": str(verification_path or (out_dir / "verification.json")),
         "verification_status": verification.get("status", "skipped" if status == "built_unverified" else ""),
@@ -362,6 +404,10 @@ def write_package_result(out_dir, status, manifest_path, preflight_path=None, fo
         result["next_step"] = "Review invoice_coverage.json, confirm unresolved invoice totals, then rerun invoice coverage before building the final pack."
     elif status == "needs_approval":
         result["next_step"] = "Provide DingTalk approval metadata, including the approval number, title-derived reimbursement type, payee, invoice entity, and approved amount, then rerun."
+    elif status == "ready_for_dingtalk":
+        result["next_step"] = "Upload the generated reimbursement form and invoice materials to DingTalk. After submission, provide the approval screenshot and rerun with --approval-metadata to build the final finance pack."
+    elif status == "needs_submission_info":
+        result["next_step"] = "Provide the reimbursement type, payee, and invoice entity before generating the DingTalk submission form. The DingTalk approval number may remain blank until after submission."
     elif status == "needs_approval_and_invoices":
         result["next_step"] = "Provide the DingTalk approval metadata and finance-approved invoices for the reported missing amount, then rerun."
     elif status == "needs_approval_and_invoice_review":
@@ -680,6 +726,16 @@ def run_invoice_coverage(script_dir, manifest_path, out_dir, ocr="auto"):
     return coverage_path, json.loads(coverage_path.read_text(encoding="utf-8"))
 
 
+def build_dingtalk_submission(script_dir, manifest_path, out_dir):
+    result = run([
+        sys.executable,
+        str(script_dir / "build_dingtalk_submission_pack.py"),
+        "--manifest", str(manifest_path),
+        "--out", str(out_dir / "钉钉提交材料"),
+    ])
+    return json.loads(result.stdout)
+
+
 def main():
     args = parse_args()
     script_dir = Path(__file__).resolve().parent
@@ -790,6 +846,53 @@ def main():
     run_workflow_reports(script_dir, manifest_path, out_dir)
     _, current_approval_issues = write_approval_gap_report(manifest_path, out_dir)
     blocking_status = prerequisite_status(coverage_status, current_approval_issues)
+    current_manifest = read_json_if_exists(manifest_path)
+    current_submission_info_issues = submission_info_issues(current_manifest)
+    approval_needs_correction = any(
+        item.get("type") in {"invalid", "mismatch"}
+        for item in current_approval_issues
+    )
+    if blocking_status == "needs_approval" and current_submission_info_issues and not approval_needs_correction:
+        package_result_path, package_result = write_package_result(
+            out_dir,
+            "needs_submission_info",
+            manifest_path,
+            preflight_path,
+            inspection_path,
+            form_cells_source=form_cells_source,
+            form_cells_origin=form_cells_origin,
+        )
+        print(json.dumps({
+            "status": "needs_submission_info",
+            "manifest": str(manifest_path),
+            "submission_info_issues": current_submission_info_issues,
+            "package_result": str(package_result_path),
+            "next_step": package_result.get("next_step", ""),
+        }, ensure_ascii=False, indent=2))
+        return
+    if blocking_status == "needs_approval" and approval_is_pre_submission(current_approval_issues):
+        submission = build_dingtalk_submission(script_dir, manifest_path, out_dir)
+        package_result_path, package_result = write_package_result(
+            out_dir,
+            "ready_for_dingtalk",
+            manifest_path,
+            preflight_path,
+            inspection_path,
+            form_cells_source=form_cells_source,
+            form_cells_origin=form_cells_origin,
+        )
+        print(json.dumps({
+            "status": "ready_for_dingtalk",
+            "manifest": str(manifest_path),
+            "dingtalk_submission_folder": submission.get("folder", ""),
+            "dingtalk_submission_zip": submission.get("zip", ""),
+            "dingtalk_submission_expense_form": submission.get("expense_form", ""),
+            "dingtalk_submission_expense_form_pdf": submission.get("expense_form_pdf", ""),
+            "dingtalk_submission_invoice_pdf": submission.get("invoice_pdf", ""),
+            "package_result": str(package_result_path),
+            "next_step": package_result.get("next_step", ""),
+        }, ensure_ascii=False, indent=2))
+        return
     if blocking_status:
         package_result_path, package_result = write_package_result(
             out_dir,

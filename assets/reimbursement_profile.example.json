@@ -1,6 +1,7 @@
 {
   "reimburser": "报销人姓名",
   "approval_defaults": {
+    "reimbursement_type": "项目报销",
     "payee": "领款人姓名",
     "invoice_entity": "公司开票名称",
     "company": "所属公司"

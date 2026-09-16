@@ -14,5 +14,6 @@ Upload `expense-reimbursement-packager-workbuddy-v<version>.zip` in WorkBuddy th
 - `manifest.yaml` for enterprise Skill management.
 - The same platform-neutral Python scripts and references as the universal package.
 - The authorized built-in `费用报销单模板.xlsx` and its validated `form_cells.json` mapping.
+- The staged DingTalk flow that creates a reimbursement-form and invoice upload package before approval, then the final finance pack after the approval screenshot.
 
 No reimbursement data, approval screenshot, or user profile is included.

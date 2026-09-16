@@ -15,7 +15,13 @@ Create a finance-ready pack with:
    - Add `reimbursement_form.template`, optional `sheet`, and `cells` mapping to the manifest.
    - Use tokens in cells when helpful: `{{project_name}}`, `{{reimburser}}`, `{{total_amount}}`, `{{expense_count}}`, `{{date_range}}`, `{{date_start}}`, `{{date_end}}`, `{{交通费_amount}}`, `{{餐饮费_amount}}`, `{{设备费_amount}}`, `{{场地费_amount}}`, `{{演员费_amount}}`, and `{{其他费用_amount}}`.
    - Do not guess a cell mapping from labels alone; inspect the workbook and verify the filled result.
-3. A finance submission folder containing:
+3. A pre-approval DingTalk submission package, generated only after invoice coverage is complete:
+   - `钉钉提交材料/01_费用报销单` with a provisional filled workbook and PDF
+   - `钉钉提交材料/02_发票及行程单` with every original invoice, replacement invoice, and itinerary
+   - `钉钉提交材料/03_便捷打印` with the invoice print PDF
+   - `钉钉提交清单.md`, `dingtalk_submission_result.json`, and `<项目>_<报销人>_钉钉提交材料.zip`
+   - Fields that do not exist before submission, especially the DingTalk approval number, remain blank and are filled only in the final rebuild.
+4. A finance submission folder containing:
    - `01_报销表`
    - `02_费用截图`
    - `03_发票`
@@ -29,58 +35,62 @@ Create a finance-ready pack with:
    - `报销审计摘要.md`
    - `交付清单.md`
    - A clean zip copy named `<项目>_<报销人>_财务提交文件夹.zip`
-4. Print-ready files:
+5. Print-ready files:
    - Three expense screenshots per A4 landscape page, sorted by date/time.
    - Invoices as one invoice per A4 page. Keep source invoice PDFs intact when possible.
    - A combined `<项目>_全部打印_一键打印.pdf`, with the reimbursement-form PDF first, expense screenshots second, and original invoices, replacement invoices, and ride itineraries last, for a single print job.
    - Stamp every combined-PDF page with a continuous `current / total` page number and require the actual total to match the form's `单据及附件共 N 页` value.
-5. Automated verification:
+6. Automated verification:
    - Run `scripts/verify_reimbursement_pack.py --pack <output-folder> --manifest <manifest.json>`.
    - Write `verification.json` in the output root, beside `pack_summary.json`.
    - Treat verification as a hard delivery gate. Reject non-positive or over-precision amounts, duplicated screenshot references, rows still marked `NEEDS_REVIEW`, and OCR-backed amounts that are absent from available OCR text.
    - Reconcile every detail row and all monetary controls: manifest, `pack_summary.json`, workbook detail sum, category amounts and counts, workbook summary total, workbook footer total, finance-folder manifest, and checklist category totals.
    - Store the CNY reconciliation at cent precision in `verification.json.financial_reconciliation` and fail if any value differs.
    - Require `status: passed` before final delivery.
-6. Input audit:
+7. Input audit:
    - One-command packaging writes `preflight_report.json` in the output root before OCR/building.
    - Use the report to confirm which source files became expense screenshots, invoices, or ignored files.
-7. Handoff checklist:
+8. Handoff checklist:
    - Write `交付清单.md` in the output root and finance submission folder.
    - Include the finance zip path, reimbursement table path, expense-form status, one-click print PDF, screenshot/invoice counts, page counts, total amount, and category totals.
-8. Final one-command result:
+9. Final one-command result:
    - Write `package_result.json` in the output root after `package_from_folder.py` stops for review or finishes building.
+   - Before approval, use `status: ready_for_dingtalk` with non-empty submission folder, zip, form, form PDF, invoice PDF, and checklist paths.
    - For successful runs, require `status: passed`, `verification_status: passed`, and non-empty paths for `delivery_checklist`, `finance_zip`, `reimbursement_workbook`, and `one_click_print_pdf`.
-9. Excel manifest review:
+10. Excel manifest review:
    - When a folder draft stops with `needs_review`, write `draft_manifest_review.xlsx` beside `draft_manifest.json`.
    - Reviewers should edit date, time, purpose, expense type, amount, and notes in Excel. Keep `用途` finance-facing and do not add a merchant column.
    - After review, prefer `scripts/package_reviewed_workbook.py --manifest <draft_manifest.json> --workbook <draft_manifest_review.xlsx> --out <output-folder>` to apply edits, build, verify, and refresh `package_result.json` in one command.
-10. Team readiness:
+11. Team readiness:
    - Run `scripts/check_readiness.py --out <readiness_report.json>` on each teammate machine before first real use. The bundled template and mapping are selected automatically.
    - Pass `--form-cells <form_cells.json>` only when a team needs to override the bundled form.
    - `scripts/onboard_reimbursement_form.py` also writes `readiness_report.json` beside `form_cells.json` after inspecting and validating a new real template.
    - Treat `status: ready` as ready for full workflow.
    - Treat `status: needs_form_template` as a damaged or incomplete installation: restore the bundled assets or supply a validated override before processing reimbursements.
-11. Invoice coverage gate:
+12. Invoice coverage gate:
    - Default to `invoice_requirement.policy: full_amount`, so recognized invoices must cover the reimbursement total.
    - After expense review, write `invoice_coverage.json` and `发票缺口清单.md` with required, recognized, missing, excess, and replacement-invoice amounts.
-   - Return `needs_invoices` when the recognized amount is short and do not create the final finance zip or one-click print PDF.
+   - Return `needs_invoices` when the recognized amount is short and do not create a DingTalk submission package, final finance zip, or one-click print PDF.
    - Return `needs_invoice_review` when an invoice total cannot be read or duplicate file content/invoice numbers are found.
    - Classify ride itineraries and similar files as `supporting_documents`: preserve and print them, but never add their displayed trip totals to invoice coverage.
    - Accept replacement invoices only when they are real, verifiable, unused in this pack, and permitted by the user's finance policy. Preserve `role: replacement`; do not attach them to an expense as if they were its original invoice.
-   - Build only when coverage is `covered` and the DingTalk screenshot fields needed by the reimbursement form have been received. Include every original and replacement invoice in `03_发票`, the invoice print PDF, and the combined print PDF. Count the reimbursement form itself in the combined print page total.
-12. Pre-DingTalk amount confirmation:
+   - Require reimbursement type, payee, and invoice entity before creating the provisional form. Return `needs_submission_info` while any of those fields are absent.
+   - When coverage is `covered`, pre-submission fields are known, and only post-submission approval data is absent, return `ready_for_dingtalk` and build only the DingTalk submission package.
+   - Build the final finance pack only when coverage is `covered` and the DingTalk screenshot fields needed by the final reimbursement form have been received. Include every original and replacement invoice in `03_发票`, the invoice print PDF, and the combined print PDF. Count the reimbursement form itself in the combined print page total.
+13. Pre-DingTalk amount and attachment preparation:
    - Assign stable voucher IDs `FY001`, `FY002`, and so on after chronological sorting.
    - Write `报销金额确认单.md` before final packaging, showing voucher ID, date, purpose, category, amount, payment-evidence status, invoice status, category subtotals, and exact total.
    - The DingTalk approval metadata must include `dingding_number`, title-derived `reimbursement_type`, `payee`, `invoice_entity`, and `approved_amount`. Require `approved_amount` to equal the payment-screenshot total exactly.
-   - Return `needs_approval`, `needs_approval_and_invoices`, or `needs_approval_and_invoice_review` when the relevant gates are not complete. Do not build final materials in those states.
-13. Expense exceptions:
+   - Resolve invoice gaps before DingTalk submission so every invoice that will support the reimbursement is attached to the approval request.
+   - Return `ready_for_dingtalk` after producing the provisional form and invoice package. Return `needs_approval` only when supplied approval data is invalid or mismatched. Do not build final finance materials in either state.
+14. Expense exceptions:
    - Write `报销异常清单.md` and flag refunds/reversals, personal or split expenses, foreign currency, multiple displayed amounts, and discounts/subsidies.
    - Blocking exceptions require an `exception_resolution` in the Excel review workbook before final packaging. Warnings remain visible for review.
-14. Reusable profile:
-   - A profile may provide only stable defaults such as `reimburser`, `payee`, `invoice_entity`, and `company`.
+15. Reusable profile:
+   - A profile may provide only stable defaults such as `reimburser`, `reimbursement_type`, `payee`, `invoice_entity`, and `company`.
    - Never reuse project-specific `dingding_number` or `approved_amount` from a profile.
    - Discover `reimbursement_profile.json` from `--profile`, `EXPENSE_REIMBURSEMENT_PROFILE`, `./03_profile/`, platform configuration folders, or the legacy `${CODEX_HOME:-~/.codex}/expense-reimbursement/` location.
-15. Final audit summary:
+16. Final audit summary:
    - Write `报销审计摘要.md` with expense count, voucher range, reimbursement total, DingTalk amount, category totals, invoice coverage, replacement amount, exception count, print pages, and verification status.
    - State explicitly that file/OCR checks do not replace tax-platform invoice-authenticity verification.
 
@@ -159,10 +169,11 @@ python scripts/package_reviewed_workbook.py --manifest <output-folder>/draft_man
 ```
 
 Also inspect any `form_inspection.json` when a `费用报销单` template is involved.
-9. Open `报销金额确认单.md`, confirm the exact total, submit DingTalk, then transcribe the visible screenshot fields into an approval JSON and pass it with `--approval-metadata <approval.json>`.
-10. After expense review, inspect `invoice_coverage.json` and `发票缺口清单.md`. If status is `needs_invoices`, provide approved replacement invoices with `--replacement-invoice-input <path>` and rerun into a fresh final output folder.
-11. Keep replacement invoices at top level with `role: replacement`. Original invoices may be attached to entries when there is an obvious one-to-one match; otherwise leave them top level.
-12. Use `scripts/draft_manifest_from_folder.py` directly only when you need a draft-only pass. Run `scripts/prepare_expense_confirmation.py`, then `scripts/analyze_invoice_coverage.py`, before a manual build.
+9. Open `报销金额确认单.md`, confirm the exact total, then inspect `invoice_coverage.json` and `发票缺口清单.md`. If status is `needs_invoices`, provide approved replacement invoices with `--replacement-invoice-input <path>` and rerun before submitting DingTalk.
+10. When `package_result.json.status` is `ready_for_dingtalk`, upload the reimbursement form and invoice files from `钉钉提交材料/` or its zip. The submission-stage form may leave the not-yet-created DingTalk approval number blank.
+11. After submitting DingTalk, transcribe the visible screenshot fields into an approval JSON and rerun with `--approval-metadata <approval.json>` to create the final finance and print pack.
+12. Keep replacement invoices at top level with `role: replacement`. Original invoices may be attached to entries when there is an obvious one-to-one match; otherwise leave them top level.
+13. Use `scripts/draft_manifest_from_folder.py` directly only when you need a draft-only pass. Run `scripts/prepare_expense_confirmation.py`, then `scripts/analyze_invoice_coverage.py`, before a manual build.
 
 The folder draft and invoice-analysis scripts support `--ocr auto`, `apple-vision`, `tesseract`, or `none`. Auto mode prefers Apple Vision on macOS and otherwise uses Tesseract when available on Windows or macOS. OCR is best-effort. Do not trust it blindly for money, dates, or categories. Read `references/platforms.md` for installation and environment variables.
 

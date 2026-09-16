@@ -5,7 +5,9 @@ import sys
 from pathlib import Path
 
 from package_from_folder import (
+    approval_is_pre_submission,
     apply_profile_and_approval,
+    build_dingtalk_submission,
     finalize_audit_summary,
     load_json_arg,
     needs_review,
@@ -15,6 +17,7 @@ from package_from_folder import (
     run_invoice_coverage,
     run_no_check,
     run_workflow_reports,
+    submission_info_issues,
     write_approval_gap_report,
     write_package_result,
 )
@@ -31,7 +34,7 @@ def parse_args():
     parser.add_argument("--allow-new-categories", action="store_true", help="Allow new expense_type values outside manifest categories while applying workbook edits.")
     parser.add_argument("--reimburser", help="Optional reimburser override; normally retained from the draft manifest or profile.")
     parser.add_argument("--profile", help="Optional reimbursement profile JSON path or JSON object.")
-    parser.add_argument("--approval-metadata", help="DingTalk fields transcribed from the approval screenshot, as a JSON path or JSON object.")
+    parser.add_argument("--approval-metadata", help="Pre-submission form fields and later DingTalk screenshot fields, as a JSON path or JSON object.")
     parser.add_argument("--approval-policy", choices=["required", "none"], help="Optional approval gate override; defaults to the draft manifest policy.")
     parser.add_argument("--ocr", choices=["auto", "apple-vision", "tesseract", "none"], default="auto", help="OCR mode for image invoices.")
     parser.add_argument("--skip-verify", action="store_true", help="Build the pack but skip automatic verification.")
@@ -106,6 +109,53 @@ def main():
     run_workflow_reports(script_dir, reviewed_manifest, out_dir)
     _, current_approval_issues = write_approval_gap_report(reviewed_manifest, out_dir)
     blocking_status = prerequisite_status(coverage_status, current_approval_issues)
+    current_manifest = json.loads(reviewed_manifest.read_text(encoding="utf-8"))
+    current_submission_info_issues = submission_info_issues(current_manifest)
+    approval_needs_correction = any(
+        item.get("type") in {"invalid", "mismatch"}
+        for item in current_approval_issues
+    )
+    if blocking_status == "needs_approval" and current_submission_info_issues and not approval_needs_correction:
+        package_result_path, package_result = write_package_result(
+            out_dir,
+            "needs_submission_info",
+            reviewed_manifest,
+            preflight_path,
+            form_inspection,
+            review_workbook=workbook_path,
+        )
+        print(json.dumps({
+            "status": "needs_submission_info",
+            "package_result": str(package_result_path),
+            "manifest": str(reviewed_manifest),
+            "manifest_review_workbook": str(workbook_path),
+            "submission_info_issues": current_submission_info_issues,
+            "next_step": package_result.get("next_step", ""),
+        }, ensure_ascii=False, indent=2))
+        return
+    if blocking_status == "needs_approval" and approval_is_pre_submission(current_approval_issues):
+        submission = build_dingtalk_submission(script_dir, reviewed_manifest, out_dir)
+        package_result_path, package_result = write_package_result(
+            out_dir,
+            "ready_for_dingtalk",
+            reviewed_manifest,
+            preflight_path,
+            form_inspection,
+            review_workbook=workbook_path,
+        )
+        print(json.dumps({
+            "status": "ready_for_dingtalk",
+            "package_result": str(package_result_path),
+            "manifest": str(reviewed_manifest),
+            "manifest_review_workbook": str(workbook_path),
+            "dingtalk_submission_folder": submission.get("folder", ""),
+            "dingtalk_submission_zip": submission.get("zip", ""),
+            "dingtalk_submission_expense_form": submission.get("expense_form", ""),
+            "dingtalk_submission_expense_form_pdf": submission.get("expense_form_pdf", ""),
+            "dingtalk_submission_invoice_pdf": submission.get("invoice_pdf", ""),
+            "next_step": package_result.get("next_step", ""),
+        }, ensure_ascii=False, indent=2))
+        return
     if blocking_status:
         package_result_path, package_result = write_package_result(
             out_dir,

@@ -8,4 +8,6 @@ Never invent amounts, approval fields, invoice data, exception resolutions, or r
 
 Use the validated built-in reimbursement form by default. User-provided form configs override it through the documented discovery order.
 
+Resolve invoice coverage before DingTalk submission. When the scripts return `ready_for_dingtalk`, give the user the provisional form and invoice submission package; wait for the approval screenshot before generating the final finance pack.
+
 Windows and macOS behavior is documented in `references/platforms.md`.

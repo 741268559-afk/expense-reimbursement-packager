@@ -13,6 +13,7 @@
 - 检查审批字段是否完整，并要求审批金额与支付凭证总额精确一致。
 - 分析原始发票和替代发票的覆盖金额、重复文件、号码、日期及购买方名称。
 - 默认填充内置 Excel 费用报销单模板，也支持用户提供的其他模板。
+- 在审批前、发票补齐后生成独立的钉钉提交包，包含提交版费用报销单、全部发票、行程单和发票打印 PDF。
 - 生成明细表、三张一页截图、单张发票、一键打印 PDF、财务提交文件夹和审计摘要。
 - 对金额、公式、发票覆盖、附件页数、连续页码和最终 ZIP 执行自动校验。
 
@@ -77,6 +78,24 @@ python3 scripts/package_from_folder.py \
   --out /path/to/output
 ```
 
+如果发票不足，先补充替票并重新运行。生成提交版报销单前，还需要明确报销类型、领款人和开票对象；这些信息可通过部分 `--approval-metadata` 或复用配置提供。信息与发票都完整后，程序返回 `ready_for_dingtalk`，并生成：
+
+```json
+{
+  "reimbursement_type": "项目报销",
+  "payee": "领款人",
+  "invoice_entity": "公司开票名称"
+}
+```
+
+此时不填写 `dingding_number` 和 `approved_amount`，将该 JSON 通过 `--approval-metadata` 传入并重新运行即可生成提交包。
+
+- `钉钉提交材料/`：提交版费用报销单、原始/替代发票、行程单和便捷打印 PDF
+- `<项目>_<报销人>_钉钉提交材料.zip`：可用于钉钉附件上传的整包文件
+- `dingtalk_submission_result.json`：上述文件的机器可读索引
+
+此时费用报销单中的钉钉审批编号可以为空，因为编号尚未产生。
+
 审批完成后，把截图中可见字段抄录到 JSON，再重新运行：
 
 ```json
@@ -103,7 +122,7 @@ python3 scripts/package_from_folder.py \
 
 上述命令会自动使用内置费用报销单。只有需要替换为其他表样时，才传入 `--form-cells /path/to/form_cells.json` 或 `--form-template /path/to/template.xlsx`。
 
-详细字段、模板接入和两阶段审核流程见 [SKILL.md](SKILL.md) 与 [references/workflow.md](references/workflow.md)。
+详细字段、模板接入和分阶段审核流程见 [SKILL.md](SKILL.md) 与 [references/workflow.md](references/workflow.md)。
 
 Windows、macOS、OCR 和配置目录说明见 [references/platforms.md](references/platforms.md)。
 

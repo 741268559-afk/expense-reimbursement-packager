@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -224,6 +225,12 @@ def main():
         "invoice_entity": "测试开票对象",
         "approved_amount": 136.80,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    submission_metadata_path = work_dir / "submission_metadata.json"
+    submission_metadata_path.write_text(json.dumps({
+        "reimbursement_type": "项目报销",
+        "payee": "测试领款人",
+        "invoice_entity": "测试开票对象",
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     form_inspection = form_config / "form_inspection.json"
     form_cells_path = form_config / "form_cells.json"
@@ -368,7 +375,7 @@ def main():
                 f"{dynamic_form_sheet[label_cell].value!r}, {dynamic_form_sheet[amount_cell].value!r}"
             )
 
-    approval_gate_pack = work_dir / "approval_gate_pack"
+    submission_info_gate_pack = work_dir / "submission_info_gate_pack"
     run([
         sys.executable,
         str(script_dir / "package_from_folder.py"),
@@ -379,7 +386,7 @@ def main():
         "--reimburser",
         "测试报销人",
         "--out",
-        str(approval_gate_pack),
+        str(submission_info_gate_pack),
         "--form-cells",
         str(form_cells_path),
         "--ocr",
@@ -387,14 +394,71 @@ def main():
         "--review-policy",
         "never",
     ])
+    submission_info_gate_result = json.loads(
+        (submission_info_gate_pack / "package_result.json").read_text(encoding="utf-8")
+    )
+    if (
+        submission_info_gate_result.get("status") != "needs_submission_info"
+        or len(submission_info_gate_result.get("submission_info_issues", [])) != 3
+        or submission_info_gate_result.get("dingtalk_submission_zip")
+    ):
+        raise SystemExit(f"Unexpected pre-submission information gate result: {submission_info_gate_result}")
+
+    approval_gate_pack = work_dir / "approval_gate_pack"
+    run([
+        sys.executable,
+        str(script_dir / "package_from_folder.py"),
+        "--input",
+        str(sources),
+        "--project-name",
+        "自检项目",
+        "--reimburser",
+        "测试报销人",
+        "--approval-metadata",
+        str(submission_metadata_path),
+        "--out",
+        str(approval_gate_pack),
+        "--ocr",
+        "none",
+        "--review-policy",
+        "never",
+    ])
     approval_gate_result = json.loads((approval_gate_pack / "package_result.json").read_text(encoding="utf-8"))
     if (
-        approval_gate_result.get("status") != "needs_approval"
+        approval_gate_result.get("status") != "ready_for_dingtalk"
         or not Path(approval_gate_result.get("confirmation_report", "")).exists()
         or not Path(approval_gate_result.get("approval_gap_report", "")).exists()
+        or not Path(approval_gate_result.get("dingtalk_submission_zip", "")).exists()
+        or not Path(approval_gate_result.get("dingtalk_submission_expense_form", "")).exists()
+        or not Path(approval_gate_result.get("dingtalk_submission_expense_form_pdf", "")).exists()
+        or not Path(approval_gate_result.get("dingtalk_submission_invoice_pdf", "")).exists()
+        or not Path(approval_gate_result.get("dingtalk_submission_checklist", "")).exists()
         or approval_gate_result.get("finance_zip")
     ):
-        raise SystemExit(f"Unexpected DingTalk approval gate result: {approval_gate_result}")
+        raise SystemExit(f"Unexpected DingTalk submission-stage result: {approval_gate_result}")
+    with zipfile.ZipFile(approval_gate_result["dingtalk_submission_zip"]) as submission_zip:
+        submission_names = submission_zip.namelist()
+    if not any("费用报销单_钉钉提交版" in name for name in submission_names):
+        raise SystemExit(f"DingTalk submission zip is missing the reimbursement form: {submission_names}")
+    if not any("原始发票" in name for name in submission_names) or not any("发票附件_行程单" in name for name in submission_names):
+        raise SystemExit(f"DingTalk submission zip is missing invoice materials: {submission_names}")
+    submission_form = load_workbook(approval_gate_result["dingtalk_submission_expense_form"], data_only=False)
+    submission_sheet = submission_form["费用报销单-2024.12.24表样"]
+    expected_submission_fields = {
+        "I3": None,
+        "I4": "项目报销",
+        "I5": "测试开票对象",
+        "H11": "测试报销人",
+        "J11": "测试领款人",
+        "H2": "单据及附件共 4 页",
+    }
+    for cell_ref, expected_value in expected_submission_fields.items():
+        actual_value = submission_sheet[cell_ref].value
+        if actual_value != expected_value:
+            raise SystemExit(
+                f"DingTalk submission form field mismatch at {cell_ref}: "
+                f"{actual_value!r} != {expected_value!r}"
+            )
 
     exception_manifest = work_dir / "exception_manifest.json"
     write_manifest(exception_manifest, screenshots, invoice, form_template, form_cells)
@@ -810,6 +874,7 @@ def main():
         "onboarding_report": str(onboard_config / "onboarding_report.json"),
         "onboarding_readiness_report": str(onboard_config / "readiness_report.json"),
         "auto_config_package_result": str(auto_config_pack / "package_result.json"),
+        "submission_info_gate_package_result": str(submission_info_gate_pack / "package_result.json"),
         "approval_gate_package_result": str(approval_gate_pack / "package_result.json"),
         "expense_exception_report": str(work_dir / "exception_reports" / "报销异常清单.md"),
         "invoice_gap_package_result": str(gap_pack / "package_result.json"),

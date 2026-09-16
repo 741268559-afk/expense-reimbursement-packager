@@ -12,9 +12,10 @@ This Skill is host-neutral. Run its Python scripts from the Skill directory with
 
 1. Collect all payment screenshots, invoices, ride itineraries, and other invoice attachments. Keep ride itineraries printable but exclude them from invoice value.
 2. Extract and review one expense row per payment screenshot, normalize purposes/categories using `references/workflow.md`, assign `FY001`-style voucher IDs, write `报销金额确认单.md` and `报销异常清单.md`, then report the exact reimbursement total before final packaging.
-3. Wait for the user's DingTalk approval screenshot. Transcribe only visible fields into an approval JSON and require the DingTalk approved amount to equal the confirmed screenshot total exactly. Never guess fields that are not visible.
-4. Analyze invoice coverage against the confirmed reimbursement total. If coverage is short, stop with `needs_invoices` and report the exact gap. Accept finance-approved replacement invoices at the beginning or later, while keeping them labeled as `replacement`.
-5. Build only after the expense total, unresolved exceptions, DingTalk form fields, and invoice coverage are ready. Put the reimbursement-form PDF first in the combined print PDF, followed by expense screenshots and then original invoices, replacement invoices, and ride itineraries. Add continuous page numbers, write `报销审计摘要.md`, and verify every amount, formula cache, page count, invoice total, and final zip before reporting the pack ready.
+3. Analyze invoice coverage against the confirmed reimbursement total. If coverage is short, stop with `needs_invoices` and report the exact gap. Accept finance-approved replacement invoices at the beginning or later, while keeping them labeled as `replacement`.
+4. Before generating the DingTalk package, require the reimbursement type, payee, and invoice entity because they are needed on the form before submission. Once the amount is reviewed, exceptions are resolved, invoices are covered, and those fields are known, generate `钉钉提交材料/` and its zip. Include a submission-stage reimbursement form, its PDF, every original/replacement invoice, ride itinerary, and an invoice print PDF. Fields that only exist after submission, especially the DingTalk approval number, stay blank in this provisional form.
+5. After the user submits DingTalk, transcribe only visible fields from the approval screenshot into an approval JSON and require the DingTalk approved amount to equal the confirmed screenshot total exactly. Never guess fields that are not visible. Rebuild the form with the approval number and other final fields.
+6. Build the final finance pack only after the DingTalk fields and amount match. Put the final reimbursement-form PDF first in the combined print PDF, followed by expense screenshots and then original invoices, replacement invoices, and ride itineraries. Add continuous page numbers, write `报销审计摘要.md`, and verify every amount, formula cache, page count, invoice total, and final zip before reporting the pack ready.
 
 ## Use The Script
 
@@ -24,9 +25,9 @@ For one-command folder packaging, run:
 python scripts/package_from_folder.py --input /path/to/source-folder --project-name 项目名 --reimburser 报销人 --out /path/to/output-folder
 ```
 
-This command writes `preflight_report.json`, `报销金额确认单.md`, `报销异常清单.md`, and `钉钉信息缺口.md`, then analyzes invoice coverage. It builds only when expense rows and exceptions are reviewed, DingTalk metadata is complete, and recognized invoices cover the reimbursement total. Otherwise `package_result.json` returns the exact pending state and report paths. Add `--stop-on-preflight-warnings` when the team wants to stop and inspect duplicate files, PDFs mixed into screenshot folders, or unsupported files before packaging.
+This command writes `preflight_report.json`, `报销金额确认单.md`, `报销异常清单.md`, and `钉钉信息缺口.md`, then analyzes invoice coverage. It returns `needs_submission_info` until reimbursement type, payee, and invoice entity are known. When invoices are covered and only post-submission fields are missing, it returns `ready_for_dingtalk` and creates the provisional reimbursement form plus invoice submission materials. It builds the final finance pack only after DingTalk metadata is complete. Otherwise `package_result.json` returns the exact pending state and report paths. Add `--stop-on-preflight-warnings` when the team wants to stop and inspect duplicate files, PDFs mixed into screenshot folders, or unsupported files before packaging.
 
-After the user submits DingTalk, transcribe the visible fields into JSON and rerun:
+Upload the files indexed by `dingtalk_submission_result.json` to DingTalk. After the user submits, transcribe the visible fields into JSON and rerun:
 
 ```bash
 python scripts/package_from_folder.py --input /path/to/source-folder --project-name 项目名 --reimburser 报销人 --approval-metadata /path/to/approval_metadata.json --out /path/to/output-folder
@@ -34,7 +35,7 @@ python scripts/package_from_folder.py --input /path/to/source-folder --project-n
 
 The approval JSON normally contains `dingding_number`, title-derived `reimbursement_type`, `reimburser`, `payee`, `invoice_entity`, and `approved_amount`. `approved_amount` is a hard equality check against the screenshot total.
 
-For repeat users, pass `--profile /path/to/reimbursement_profile.json` or keep `03_profile/reimbursement_profile.json` beside the team starter. A profile may store only stable defaults such as reimburser, payee, invoice entity, and company. Never store an approval number or project amount in the profile.
+For repeat users, pass `--profile /path/to/reimbursement_profile.json` or keep `03_profile/reimbursement_profile.json` beside the team starter. A profile may store only stable defaults such as reimburser, reimbursement type, payee, invoice entity, and company. Never store an approval number or project amount in the profile.
 
 For messy inputs, first run:
 
@@ -107,6 +108,8 @@ python scripts/verify_reimbursement_pack.py --pack /path/to/output-folder --mani
 
 The script creates:
 
+- `钉钉提交材料/` and `<项目>_<报销人>_钉钉提交材料.zip` before approval, once invoice coverage is complete
+- `dingtalk_submission_result.json`, indexing the submission-stage form, form PDF, invoice PDF, checklist, folder, and zip
 - `报销表/<项目>_<报销人>_报销明细表.xlsx`
 - `报销表/<项目>_<报销人>_费用报销单.xlsx`, using the built-in form unless overridden
 - `打印/<项目>_费用报销单_打印.pdf`, using the built-in form unless overridden
@@ -136,7 +139,7 @@ To verify a local installation before processing real reimbursements, run:
 python scripts/self_test.py --out /path/to/self-test-output
 ```
 
-The self-test creates synthetic screenshots, a mock invoice, a test `费用报销单` template, a portable `form_cells.json`, a manifest review workbook, a first-stage missing-invoice result, a replacement-invoice final pack, a tamper-rejection test, and `verification.json`.
+The self-test creates synthetic screenshots, a mock invoice, a test `费用报销单` template, a portable `form_cells.json`, a manifest review workbook, a pre-approval DingTalk submission pack, a first-stage missing-invoice result, a replacement-invoice final pack, a tamper-rejection test, and `verification.json`.
 
 For a faster team-readiness check, or after editing an override `form_cells.json`, run:
 
@@ -156,7 +159,7 @@ Required top-level fields:
 
 Optional top-level field:
 
-- `approval_metadata`: fields transcribed from a DingTalk approval screenshot. Only use values visibly present in the screenshot or stable defaults explicitly authorized in the profile. Supported keys are `dingding_number`, `reimbursement_type`, `reimburser`, `payee`, `invoice_entity`, `approved_amount`, `company`, `reimbursement_project`, `contract_number`, `reimbursement_reason`, and `business_line`.
+- `approval_metadata`: pre-submission form fields explicitly supplied by the user plus fields transcribed from the later DingTalk approval screenshot. Only use user-provided values, visibly present screenshot values, or stable defaults explicitly authorized in the profile. Supported keys are `dingding_number`, `reimbursement_type`, `reimburser`, `payee`, `invoice_entity`, `approved_amount`, `company`, `reimbursement_project`, `contract_number`, `reimbursement_reason`, and `business_line`.
 - `approval_requirement`: defaults to `policy: required` with required fields `dingding_number`, `reimbursement_type`, `payee`, `invoice_entity`, and `approved_amount`.
 - `expense_confirmation`: records the amount confirmed by the matching DingTalk approval.
 - `expense_exceptions`: generated exception records; blocking items require an entry-level `exception_resolution`.
