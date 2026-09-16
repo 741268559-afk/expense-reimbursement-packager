@@ -1,0 +1,35 @@
+{
+  "template": "费用报销单模板.xlsx",
+  "sheet": "费用报销单-2024.12.24表样",
+  "cells": {
+    "H2": "单据及附件共 {{total_print_pages}} 页",
+    "I3": "{{dingding_number}}",
+    "I4": "{{reimbursement_type}}",
+    "I5": "{{invoice_entity}}",
+    "I6": "{{project_name}}\n{{date_range}}",
+    "H11": "{{reimburser}}",
+    "J11": "{{payee}}"
+  },
+  "category_rows": [
+    {
+      "label_cell": "A4",
+      "amount_cell": "F4"
+    },
+    {
+      "label_cell": "A5",
+      "amount_cell": "F5"
+    },
+    {
+      "label_cell": "A6",
+      "amount_cell": "F6"
+    },
+    {
+      "label_cell": "A7",
+      "amount_cell": "F7"
+    },
+    {
+      "label_cell": "A8",
+      "amount_cell": "F8"
+    }
+  ]
+}

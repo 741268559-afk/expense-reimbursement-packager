@@ -1,5 +1,5 @@
 name: expense-reimbursement-packager
-version: 1.1.0
+version: 1.2.0
 description: "Build finance-ready reimbursement packages from payment screenshots, invoices, approval data, and Excel forms."
 category: finance
 author: Expense Reimbursement Packager contributors

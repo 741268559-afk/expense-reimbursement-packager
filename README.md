@@ -12,7 +12,7 @@
 - 检查退款、拆分支付、个人费用、外币和多金额等异常。
 - 检查审批字段是否完整，并要求审批金额与支付凭证总额精确一致。
 - 分析原始发票和替代发票的覆盖金额、重复文件、号码、日期及购买方名称。
-- 填充用户提供的 Excel 费用报销单模板。
+- 默认填充内置 Excel 费用报销单模板，也支持用户提供的其他模板。
 - 生成明细表、三张一页截图、单张发票、一键打印 PDF、财务提交文件夹和审计摘要。
 - 对金额、公式、发票覆盖、附件页数、连续页码和最终 ZIP 执行自动校验。
 
@@ -63,7 +63,7 @@ python scripts/self_test.py --out expense-reimbursement-self-test
 python scripts/check_readiness.py --out reimbursement-readiness.json
 ```
 
-未配置费用报销单模板时，轻量检查返回 `needs_form_template` 是预期状态；明细表和打印材料仍可生成。
+仓库已内置经过校验的 `assets/费用报销单模板.xlsx` 和 `assets/form_cells.json`，正常安装时轻量检查应返回 `ready`。
 
 ## 基本用法
 
@@ -98,9 +98,10 @@ python3 scripts/package_from_folder.py \
   --project-name "项目名称" \
   --reimburser "报销人" \
   --approval-metadata /path/to/approval_metadata.json \
-  --form-cells /path/to/form_cells.json \
   --out /path/to/final-output
 ```
+
+上述命令会自动使用内置费用报销单。只有需要替换为其他表样时，才传入 `--form-cells /path/to/form_cells.json` 或 `--form-template /path/to/template.xlsx`。
 
 详细字段、模板接入和两阶段审核流程见 [SKILL.md](SKILL.md) 与 [references/workflow.md](references/workflow.md)。
 
@@ -117,7 +118,7 @@ python scripts/build_release_packages.py --out dist
 ## 数据与合规边界
 
 - 脚本默认在本地处理文件，不包含上传真实票据的代码。
-- 不要把真实支付截图、身份证明、发票、审批截图、公司模板或生成结果提交到公开仓库。
+- 不要把真实支付截图、身份证明、发票、审批截图、额外的公司模板或生成结果提交到公开仓库。`assets/费用报销单模板.xlsx` 是仓库所有者明确授权公开的内置表样。
 - OCR 和文件解析结果必须人工复核，尤其是金额、日期、币种、退款状态和费用用途。
 - 发票文件检查不等同于税务平台验真。真伪、可抵扣性和替代发票能否使用，应由财务或税务人员确认。
 - 该项目提供材料整理与一致性校验，不构成财务、税务或法律意见。
@@ -135,6 +136,8 @@ expense-reimbursement-packager/
 |-- scripts/
 |-- references/
 |-- assets/
+|   |-- 费用报销单模板.xlsx
+|   `-- form_cells.json
 |-- requirements.txt
 `-- LICENSE
 ```

@@ -6,4 +6,6 @@ Run scripts with the active Python interpreter. If required Python modules are u
 
 Never invent amounts, approval fields, invoice data, exception resolutions, or reimbursement-form mappings. Stop at the corresponding review gate and present the generated report to the user.
 
+Use the validated built-in reimbursement form by default. User-provided form configs override it through the documented discovery order.
+
 Windows and macOS behavior is documented in `references/platforms.md`.

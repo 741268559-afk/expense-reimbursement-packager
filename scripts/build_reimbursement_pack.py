@@ -587,8 +587,9 @@ def patch_formula_caches(path, sheet_index, caches):
                                 if cached_type:
                                     header = header[:-1] + f' t="{cached_type}">'
                                 escaped = html.escape(str(cached_value))
-                                if re.search(r"<v>.*?</v>", body, flags=re.DOTALL):
-                                    body = re.sub(r"<v>.*?</v>", f"<v>{escaped}</v>", body, count=1, flags=re.DOTALL)
+                                value_pattern = r"<v(?:\s[^>]*)?\s*/>|<v>.*?</v>"
+                                if re.search(value_pattern, body, flags=re.DOTALL):
+                                    body = re.sub(value_pattern, f"<v>{escaped}</v>", body, count=1, flags=re.DOTALL)
                                 else:
                                     body += f"<v>{escaped}</v>"
                                 return header + body + footer

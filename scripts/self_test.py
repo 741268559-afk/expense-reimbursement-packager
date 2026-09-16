@@ -290,8 +290,13 @@ def main():
         str(work_dir / "readiness_without_form.json"),
     ])
     readiness_without_form = json.loads(readiness_without_form_text)
-    if readiness_without_form.get("status") != "needs_form_template":
-        raise SystemExit(f"Unexpected readiness without form status: {readiness_without_form}")
+    if (
+        readiness_without_form.get("status") != "ready"
+        or readiness_without_form.get("form_cells_origin") != "built-in"
+        or Path(readiness_without_form.get("form_cells", "")).resolve()
+        != (script_dir.parent / "assets" / "form_cells.json").resolve()
+    ):
+        raise SystemExit(f"Unexpected built-in form readiness status: {readiness_without_form}")
     readiness_with_form_text = run([
         sys.executable,
         str(script_dir / "check_readiness.py"),
@@ -520,8 +525,6 @@ def main():
         str(approval_path),
         "--out",
         str(one_command_pack),
-        "--form-cells",
-        str(form_cells_path),
         "--ocr",
         "none",
         "--review-policy",
@@ -533,6 +536,12 @@ def main():
     package_result = json.loads(package_result_path.read_text(encoding="utf-8"))
     if package_result.get("status") != "passed" or package_result.get("verification_status") != "passed":
         raise SystemExit(f"Unexpected one-command package_result: {package_result}")
+    if (
+        package_result.get("form_cells")
+        != str((script_dir.parent / "assets" / "form_cells.json").resolve())
+        or package_result.get("form_cells_origin") != "built-in"
+    ):
+        raise SystemExit(f"Expected built-in form config in package_result: {package_result}")
     if package_result.get("supporting_document_count") != 1:
         raise SystemExit(f"Expected one supporting itinerary document in the final pack: {package_result}")
     for key in [
@@ -548,6 +557,36 @@ def main():
     ]:
         if not package_result.get(key):
             raise SystemExit(f"Missing {key} in package_result.json")
+    built_in_form = load_workbook(package_result["expense_form"], data_only=False)
+    built_in_sheet = built_in_form["费用报销单-2024.12.24表样"]
+    expected_built_in_rows = [
+        ("A4", "F4", "交通费", 12.30),
+        ("A5", "F5", "餐饮费", 45.60),
+        ("A6", "F6", "设备费", 78.90),
+    ]
+    for label_cell, amount_cell, expected_label, expected_amount in expected_built_in_rows:
+        if (
+            built_in_sheet[label_cell].value != expected_label
+            or abs(float(built_in_sheet[amount_cell].value) - expected_amount) > 0.001
+        ):
+            raise SystemExit(
+                f"Built-in form row mismatch at {label_cell}/{amount_cell}: "
+                f"{built_in_sheet[label_cell].value!r}, {built_in_sheet[amount_cell].value!r}"
+            )
+    expected_fields = {
+        "H2": "单据及附件共 4 页",
+        "I3": "SELF-TEST-APPROVAL-001",
+        "I4": "项目报销",
+        "I5": "测试开票对象",
+        "H11": "测试报销人",
+        "J11": "测试领款人",
+    }
+    for cell_ref, expected_value in expected_fields.items():
+        if built_in_sheet[cell_ref].value != expected_value:
+            raise SystemExit(
+                f"Built-in form field mismatch at {cell_ref}: "
+                f"{built_in_sheet[cell_ref].value!r} != {expected_value!r}"
+            )
     audit_text = Path(package_result["audit_summary"]).read_text(encoding="utf-8")
     if "自动校验：全部通过" not in audit_text:
         raise SystemExit(f"Expected finalized audit summary status, got: {audit_text}")

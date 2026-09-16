@@ -10,8 +10,8 @@ Create a finance-ready pack with:
    - Default summary rows: `交通费`, `餐饮费`, `设备费`, `场地费`, `演员费`, `其他费用`, `总  计`
    - Detail columns: `凭证编号`, `日期`, `用途`, `报销人`, `费用类型`, `金额(元)`, `凭证截图`, `发票`
    - Category totals and counts must match the manifest and be visible without requiring Excel recalculation.
-2. A filled `费用报销单` when the user provides its template:
-   - Inspect the template visually and by cell values.
+2. A filled `费用报销单` using the built-in template unless the user provides an override:
+   - The built-in template and mapping are already validated; inspect any override visually and by cell values.
    - Add `reimbursement_form.template`, optional `sheet`, and `cells` mapping to the manifest.
    - Use tokens in cells when helpful: `{{project_name}}`, `{{reimburser}}`, `{{total_amount}}`, `{{expense_count}}`, `{{date_range}}`, `{{date_start}}`, `{{date_end}}`, `{{交通费_amount}}`, `{{餐饮费_amount}}`, `{{设备费_amount}}`, `{{场地费_amount}}`, `{{演员费_amount}}`, and `{{其他费用_amount}}`.
    - Do not guess a cell mapping from labels alone; inspect the workbook and verify the filled result.
@@ -55,10 +55,11 @@ Create a finance-ready pack with:
    - Reviewers should edit date, time, purpose, expense type, amount, and notes in Excel. Keep `用途` finance-facing and do not add a merchant column.
    - After review, prefer `scripts/package_reviewed_workbook.py --manifest <draft_manifest.json> --workbook <draft_manifest_review.xlsx> --out <output-folder>` to apply edits, build, verify, and refresh `package_result.json` in one command.
 10. Team readiness:
-   - Run `scripts/check_readiness.py --form-cells <form_cells.json> --out <readiness_report.json>` on each teammate machine before first real use.
+   - Run `scripts/check_readiness.py --out <readiness_report.json>` on each teammate machine before first real use. The bundled template and mapping are selected automatically.
+   - Pass `--form-cells <form_cells.json>` only when a team needs to override the bundled form.
    - `scripts/onboard_reimbursement_form.py` also writes `readiness_report.json` beside `form_cells.json` after inspecting and validating a new real template.
    - Treat `status: ready` as ready for full workflow.
-   - Treat `status: needs_form_template` as a clean install without the real `费用报销单` mapping yet: detail tables, folders, and print packs can still run, but final objective is not complete.
+   - Treat `status: needs_form_template` as a damaged or incomplete installation: restore the bundled assets or supply a validated override before processing reimbursements.
 11. Invoice coverage gate:
    - Default to `invoice_requirement.policy: full_amount`, so recognized invoices must cover the reimbursement total.
    - After expense review, write `invoice_coverage.json` and `发票缺口清单.md` with required, recognized, missing, excess, and replacement-invoice amounts.
@@ -148,9 +149,9 @@ When the user provides a folder rather than a prepared manifest:
 2. For especially messy inputs, run `scripts/preflight_inputs.py --input <folder-or-zip> --invoice-input <invoice-folder-or-zip> --out <preflight_report.json>` first. Direct `.zip` archives are scanned in place and reported as `archive.zip::member/path.png`. Confirm the report's screenshot/invoice counts and warnings.
 3. `--input` may be a folder or `.zip`; zip inputs are extracted into the output folder before OCR and packing.
 4. If original invoices are in a separate file, folder, or `.zip`, pass them with one or more `--invoice-input <path>` arguments. These become top-level `invoices` unless manually matched to specific entries later.
-5. If a `费用报销单` Excel template is available, pass it with `--form-template <template.xlsx>`. The script writes `form_inspection.json`, adds recommended mappings, and builds the filled form when usable.
-6. For a fixed team form template, pass the reviewed `form_cells.json` through `--form-cells` so the one-command run uses the approved template, sheet, and cell mapping instead of only the recommendation.
-7. When `--form-cells` is omitted, `package_from_folder.py` auto-detects `form_cells.json` from `--form-config-dir`, environment variables, the current folder, `./02_form_template_config/`, platform configuration folders, or the legacy Codex location. Check `package_result.json.form_cells` to confirm which config was used.
+5. By default, let the script use `assets/费用报销单模板.xlsx` with `assets/form_cells.json`.
+6. To use another Excel form, pass it with `--form-template <template.xlsx>` or pass a reviewed `form_cells.json` through `--form-cells`.
+7. When `--form-cells` is omitted, `package_from_folder.py` auto-detects overrides from `--form-config-dir`, environment variables, the current folder, `./02_form_template_config/`, platform configuration folders, or the legacy Codex location, then falls back to the built-in config. Check `package_result.json.form_cells` and `form_cells_origin` to confirm which config was used.
 8. If it stops with `needs_review`, open `draft_manifest_review.xlsx`, correct blank fields and rows marked `NEEDS_REVIEW`, then finish the pack:
 
 ```bash

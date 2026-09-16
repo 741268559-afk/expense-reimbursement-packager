@@ -54,15 +54,17 @@ python scripts/package_reviewed_workbook.py --manifest /path/to/output-folder/dr
 
 This applies the edited workbook to `reviewed_manifest.json`, builds the pack, runs verification, and refreshes `package_result.json`.
 
-When a `费用报销单` Excel template is available, include it in the same command:
+The one-command flow uses the validated built-in `assets/费用报销单模板.xlsx` and `assets/form_cells.json` automatically. To override it with another `费用报销单` Excel template, include it in the command:
 
 ```bash
 python scripts/package_from_folder.py --input /path/to/source-folder --project-name 项目名 --reimburser 报销人 --out /path/to/output-folder --form-template /path/to/费用报销单.xlsx
 ```
 
-The one-command script inspects the form template, adds recommended `reimbursement_form` mappings to the manifest, then builds the filled form when the mappings are usable. For a fixed team template, pass a reviewed mapping with `--form-cells /path/to/form_cells.json`; if that JSON contains `template`, `--form-template` may be omitted.
+The one-command script inspects an override template, adds recommended `reimbursement_form` mappings to the manifest, then builds the filled form when the mappings are usable. For another fixed team template, pass a reviewed mapping with `--form-cells /path/to/form_cells.json`; if that JSON contains `template`, `--form-template` may be omitted.
 
-If `--form-cells` is omitted, `package_from_folder.py` tries to auto-detect `form_cells.json` from explicit arguments, environment variables, the current folder, platform configuration folders, and the legacy Codex configuration folder. Set `EXPENSE_REIMBURSEMENT_HOME` for a host-neutral shared location. It records the chosen path in `package_result.json` as `form_cells`.
+If `--form-cells` is omitted, `package_from_folder.py` first checks explicit arguments, environment variables, the current folder, platform configuration folders, and the legacy Codex configuration folder. If none is present, it falls back to the built-in `assets/form_cells.json`. Set `EXPENSE_REIMBURSEMENT_HOME` for a host-neutral shared location. The selected path and origin are recorded in `package_result.json`.
+
+The bundled form has five expense rows. It dynamically writes nonzero categories in manifest order and refuses to generate when all six default categories are nonzero, instead of silently merging categories.
 
 `--input` can be a folder or a `.zip` archive. If invoices are in a separate folder, file, or `.zip`, add one or more `--invoice-input` arguments:
 
@@ -106,8 +108,8 @@ python scripts/verify_reimbursement_pack.py --pack /path/to/output-folder --mani
 The script creates:
 
 - `报销表/<项目>_<报销人>_报销明细表.xlsx`
-- `报销表/<项目>_<报销人>_费用报销单.xlsx` when a form template is configured
-- `打印/<项目>_费用报销单_打印.pdf` when a form template is configured
+- `报销表/<项目>_<报销人>_费用报销单.xlsx`, using the built-in form unless overridden
+- `打印/<项目>_费用报销单_打印.pdf`, using the built-in form unless overridden
 - `打印/<项目>_费用截图_三张一页.pdf`
 - `打印/<项目>_打印排版.xlsx`
 - `打印/<项目>_发票_一张一页.pdf` when invoices exist
@@ -136,13 +138,13 @@ python scripts/self_test.py --out /path/to/self-test-output
 
 The self-test creates synthetic screenshots, a mock invoice, a test `费用报销单` template, a portable `form_cells.json`, a manifest review workbook, a first-stage missing-invoice result, a replacement-invoice final pack, a tamper-rejection test, and `verification.json`.
 
-For a faster team-readiness check, or after editing `form_cells.json`, run:
+For a faster team-readiness check, or after editing an override `form_cells.json`, run:
 
 ```bash
-python scripts/check_readiness.py --form-cells /path/to/form_cells.json --out /path/to/readiness_report.json
+python scripts/check_readiness.py --out /path/to/readiness_report.json
 ```
 
-Without `--form-cells`, readiness returns `needs_form_template`: detail tables and print packs can still run, but the real `费用报销单` workflow is not ready.
+Without `--form-cells`, readiness validates the built-in form and should return `ready`. Pass `--form-cells` only to validate an override.
 
 ## Manifest Rules
 
@@ -179,14 +181,14 @@ Top-level invoice fields:
 
 Optional form field:
 
-- `reimbursement_form.template`: path to a provided `费用报销单` template.
+- `reimbursement_form.template`: path to the selected `费用报销单` template; the one-command flow supplies the built-in template by default.
 - `reimbursement_form.sheet`: sheet name to fill; defaults to the active sheet.
 - `reimbursement_form.cells`: mapping from cell references to literal values or tokens such as `{{project_name}}`, `{{reimburser}}`, `{{dingding_number}}`, `{{reimbursement_type}}`, `{{payee}}`, `{{invoice_entity}}`, `{{total_amount}}`, `{{date_range}}`, `{{total_print_pages}}`, `{{交通费_amount}}`, and `{{交通费_count}}`.
 - `reimbursement_form.category_rows`: optional reusable list of `{label_cell, amount_cell}` slots. The builder fills only nonzero categories in manifest order and stops if the template has too few rows, rather than silently combining categories.
 
 ## Reimbursement Form Templates
 
-If the user provides an additional `费用报销单` template, inspect it first, identify the target cells, add a `reimbursement_form` mapping to the manifest, then run the script. Keep this as a separate output under `报销表/` and copy it into `财务提交文件夹/01_报销表/`. If no template is provided, do not invent one; mention that the detail table and print pack are ready and the form template can be added later.
+If the user provides an additional `费用报销单` template, inspect it first, identify the target cells, add a `reimbursement_form` mapping to the manifest, then run the script. Keep this as a separate output under `报销表/` and copy it into `财务提交文件夹/01_报销表/`. When no override is provided, use the built-in template and mapping.
 
 To inspect a new Excel form template and draft cell mappings, run:
 

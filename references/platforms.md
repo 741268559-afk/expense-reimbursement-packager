@@ -69,8 +69,10 @@ Explicit command arguments and environment variables have priority. Automatic co
 - macOS: `~/Library/Application Support/expense-reimbursement-packager/expense-reimbursement/`
 - Linux: `${XDG_CONFIG_HOME:-~/.config}/expense-reimbursement-packager/expense-reimbursement/`
 - Legacy Codex location: `${CODEX_HOME:-~/.codex}/expense-reimbursement/`
+- Built-in fallback: `assets/form_cells.json` beside `assets/费用报销单模板.xlsx`
 
 Set `EXPENSE_REIMBURSEMENT_HOME` to use the same custom configuration root with any Agent.
+Explicit and platform configuration always take priority over the built-in fallback.
 
 ## File Compatibility
 

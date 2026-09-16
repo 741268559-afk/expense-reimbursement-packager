@@ -283,7 +283,7 @@ def find_generated(summary, needle):
     return ""
 
 
-def write_package_result(out_dir, status, manifest_path, preflight_path=None, form_inspection=None, review_rows=None, verification_path=None, review_workbook=None, form_cells_source=None):
+def write_package_result(out_dir, status, manifest_path, preflight_path=None, form_inspection=None, review_rows=None, verification_path=None, review_workbook=None, form_cells_source=None, form_cells_origin=""):
     summary_path = out_dir / "pack_summary.json"
     summary = read_json_if_exists(summary_path)
     preflight = read_json_if_exists(preflight_path) if preflight_path else {}
@@ -302,6 +302,7 @@ def write_package_result(out_dir, status, manifest_path, preflight_path=None, fo
         "manifest": str(manifest_path),
         "manifest_review_workbook": str(review_workbook) if review_workbook else "",
         "form_cells": str(form_cells_source) if form_cells_source else "",
+        "form_cells_origin": form_cells_origin,
         "preflight_report": str(preflight_path) if preflight_path else "",
         "preflight_status": preflight.get("status", ""),
         "preflight_warnings": preflight.get("warnings", []),
@@ -549,6 +550,9 @@ def resolve_form_cells_source(args):
         seen.add(key)
         if candidate.exists():
             return candidate.resolve(), "auto"
+    built_in = Path(__file__).resolve().parent.parent / "assets" / "form_cells.json"
+    if built_in.exists():
+        return built_in.resolve(), "built-in"
     return None, ""
 
 
@@ -706,7 +710,7 @@ def main():
     manifest_path = Path(args.manifest_out).expanduser().resolve() if args.manifest_out else out_dir / "draft_manifest.json"
     preflight_path, preflight_report = run_preflight(args, script_dir, out_dir)
     if args.stop_on_preflight_warnings and preflight_report and preflight_report.get("status") != "ready":
-        package_result_path, _ = write_package_result(out_dir, "preflight_needs_review", manifest_path, preflight_path, form_cells_source=form_cells_source)
+        package_result_path, _ = write_package_result(out_dir, "preflight_needs_review", manifest_path, preflight_path, form_cells_source=form_cells_source, form_cells_origin=form_cells_origin)
         print(json.dumps({
             "status": "preflight_needs_review",
             "preflight_report": str(preflight_path),
@@ -768,7 +772,7 @@ def main():
     review_rows = needs_review(manifest_path) + form_review_rows(manifest_path)
     if args.review_policy == "always" or (args.review_policy == "auto" and review_rows):
         review_workbook = export_manifest_review_workbook(script_dir, manifest_path, out_dir)
-        package_result_path, _ = write_package_result(out_dir, "needs_review", manifest_path, preflight_path, inspection_path, review_rows, review_workbook=review_workbook, form_cells_source=form_cells_source)
+        package_result_path, _ = write_package_result(out_dir, "needs_review", manifest_path, preflight_path, inspection_path, review_rows, review_workbook=review_workbook, form_cells_source=form_cells_source, form_cells_origin=form_cells_origin)
         print(json.dumps({
             "status": "needs_review",
             "manifest": str(manifest_path),
@@ -794,6 +798,7 @@ def main():
             preflight_path,
             inspection_path,
             form_cells_source=form_cells_source,
+            form_cells_origin=form_cells_origin,
         )
         print(json.dumps({
             "status": blocking_status,
@@ -831,7 +836,7 @@ def main():
         verify_result = run_no_check(verify_cmd)
         status = "passed" if verify_result.returncode == 0 else "failed_verification"
         finalize_audit_summary(out_dir, verification_path, verify_result.returncode == 0)
-        package_result_path, package_result = write_package_result(out_dir, status, manifest_path, preflight_path, inspection_path, verification_path=verification_path, form_cells_source=form_cells_source)
+        package_result_path, package_result = write_package_result(out_dir, status, manifest_path, preflight_path, inspection_path, verification_path=verification_path, form_cells_source=form_cells_source, form_cells_origin=form_cells_origin)
         print(json.dumps({
             "status": status,
             "package_result": str(package_result_path),
@@ -842,7 +847,7 @@ def main():
         if verify_result.returncode != 0:
             raise SystemExit(verify_result.returncode)
         return
-    package_result_path, package_result = write_package_result(out_dir, status, manifest_path, preflight_path, inspection_path, verification_path=verification_path, form_cells_source=form_cells_source)
+    package_result_path, package_result = write_package_result(out_dir, status, manifest_path, preflight_path, inspection_path, verification_path=verification_path, form_cells_source=form_cells_source, form_cells_origin=form_cells_origin)
     print(json.dumps({
         "status": status,
         "package_result": str(package_result_path),

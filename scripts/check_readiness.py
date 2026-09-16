@@ -33,6 +33,10 @@ REQUIRED_SCRIPTS = [
     "verify_reimbursement_pack.py",
     "vision_ocr.swift",
 ]
+REQUIRED_ASSETS = [
+    "form_cells.json",
+    "费用报销单模板.xlsx",
+]
 
 
 def parse_args():
@@ -83,6 +87,17 @@ def main():
     if missing_scripts:
         errors.append(f"Missing required script(s): {', '.join(missing_scripts)}")
 
+    missing_assets = []
+    for asset in REQUIRED_ASSETS:
+        path = script_dir.parent / "assets" / asset
+        if path.exists():
+            add_check(checks, f"asset:{asset}", "passed", str(path))
+        else:
+            missing_assets.append(asset)
+            add_check(checks, f"asset:{asset}", "failed", "Missing required built-in asset.")
+    if missing_assets:
+        errors.append(f"Missing required asset(s): {', '.join(missing_assets)}")
+
     missing_modules = []
     for module in REQUIRED_MODULES:
         try:
@@ -131,26 +146,29 @@ def main():
         add_check(checks, "ocr_auto_backend", "passed", ocr["auto_backend"])
 
     form_validation = {}
-    if args.form_cells:
+    built_in_form_cells = script_dir.parent / "assets" / "form_cells.json"
+    form_cells = Path(args.form_cells).expanduser().resolve() if args.form_cells else built_in_form_cells
+    form_cells_origin = "argument" if args.form_cells else "built-in"
+    if form_cells.exists():
         form_cmd = [
             sys.executable,
             str(script_dir / "validate_form_config.py"),
             "--form-cells",
-            args.form_cells,
+            str(form_cells),
         ]
         if args.template:
             form_cmd.extend(["--template", args.template])
         form_result, form_validation = run_json_command(form_cmd)
         form_status = form_validation.get("status", "failed" if form_result.returncode else "passed")
         check_status = "passed" if form_result.returncode == 0 else "failed"
-        add_check(checks, "form_config", check_status, form_status)
+        add_check(checks, "form_config", check_status, f"{form_status} ({form_cells_origin}: {form_cells})")
         if form_result.returncode != 0:
             errors.append("form_cells.json failed validation.")
         elif form_status == "passed_with_warnings":
             warnings.extend(form_validation.get("warnings", []))
     else:
-        warnings.append("No form_cells.json provided; detail table and print pack can run, but the real 费用报销单 is not ready.")
-        add_check(checks, "form_config", "warning", "No form_cells.json provided.")
+        warnings.append("No built-in or user-provided form_cells.json is available.")
+        add_check(checks, "form_config", "warning", "No form_cells.json available.")
 
     self_test = {}
     if args.run_self_test:
@@ -170,16 +188,18 @@ def main():
     if errors:
         status = "failed"
         next_step = "Fix failed checks before processing reimbursements."
-    elif not args.form_cells:
+    elif not form_cells.exists():
         status = "needs_form_template"
         next_step = "Add the real 费用报销单 template, run onboard_reimbursement_form.py, validate form_cells.json, then rerun this readiness check."
     else:
         status = "ready"
-        next_step = "Run package_from_folder.py with --form-cells for real reimbursement folders."
+        next_step = "Run package_from_folder.py; the validated built-in form is used unless a user config overrides it."
 
     result = {
         "status": status,
         "skill_dir": str(script_dir.parent),
+        "form_cells": str(form_cells) if form_cells.exists() else "",
+        "form_cells_origin": form_cells_origin if form_cells.exists() else "",
         "checks": checks,
         "warnings": warnings,
         "errors": errors,
