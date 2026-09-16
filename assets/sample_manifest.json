@@ -1,0 +1,63 @@
+{
+  "workflow_version": 2,
+  "project_name": "项目名称",
+  "reimburser": "报销人姓名",
+  "categories": ["交通费", "餐饮费", "设备费", "场地费", "演员费", "其他费用"],
+  "invoices": [],
+  "invoice_requirement": {"policy": "full_amount"},
+  "approval_requirement": {
+    "policy": "required",
+    "required_fields": ["dingding_number", "reimbursement_type", "payee", "invoice_entity", "approved_amount"]
+  },
+  "approval_metadata": {
+    "dingding_number": "",
+    "reimbursement_type": "项目报销",
+    "reimburser": "报销人姓名",
+    "payee": "",
+    "invoice_entity": "",
+    "approved_amount": ""
+  },
+  "reimbursement_form": {
+    "template": "",
+    "sheet": "",
+    "output_name": "",
+    "cells": {
+      "B2": "{{reimburser}}",
+      "B3": "{{project_name}}",
+      "B4": "{{date_range}}",
+      "B5": "{{total_amount}}"
+    },
+    "category_rows": [
+      {"label_cell": "A4", "amount_cell": "F4"},
+      {"label_cell": "A5", "amount_cell": "F5"},
+      {"label_cell": "A6", "amount_cell": "F6"},
+      {"label_cell": "A7", "amount_cell": "F7"},
+      {"label_cell": "A8", "amount_cell": "F8"},
+      {"label_cell": "A9", "amount_cell": "F9"}
+    ]
+  },
+  "entries": [
+    {
+      "voucher_id": "FY001",
+      "date": "2026-07-01",
+      "time": "20:26:27",
+      "purpose": "餐费",
+      "expense_type": "餐饮费",
+      "amount": 57.9,
+      "screenshot": "receipts/IMG_0001.PNG",
+      "invoices": [],
+      "exception_resolution": ""
+    },
+    {
+      "voucher_id": "FY002",
+      "date": "2026-07-01",
+      "time": "11:09:09",
+      "purpose": "设备配送费",
+      "expense_type": "设备费",
+      "amount": 27.95,
+      "screenshot": "receipts/IMG_0002.PNG",
+      "invoices": ["invoices/invoice_0002.pdf"],
+      "exception_resolution": ""
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expense Reimbursement Packager"
+  short_description: "Build reimbursement packs from receipts"
+  default_prompt: "Use $expense-reimbursement-packager to turn my expense screenshots and invoices into a finance-ready reimbursement pack."

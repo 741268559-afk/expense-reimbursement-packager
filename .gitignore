@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
+.venv/
+venv/
+dist/
+build/
+
+# Reimbursement data and generated outputs may contain sensitive information.
+inputs/
+output/
+outputs/
+*.zip
+approval_metadata.json
+reimbursement_profile.json
+draft_manifest.json
+reviewed_manifest.json
+preflight_report.json
+package_result.json
+verification.json
