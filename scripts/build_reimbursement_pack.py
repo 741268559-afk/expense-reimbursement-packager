@@ -563,13 +563,13 @@ def patch_formula_caches(path, sheet_index, caches):
     if not caches:
         return
     worksheet_name = f"xl/worksheets/sheet{sheet_index}.xml"
-    with zipfile.ZipFile(path, "r") as source:
-        if worksheet_name not in source.namelist():
-            raise ValueError(f"Worksheet XML not found for formula cache refresh: {worksheet_name}")
-        handle = tempfile.NamedTemporaryFile(prefix="expense-form-", suffix=path.suffix, dir=path.parent, delete=False)
-        temp_path = Path(handle.name)
-        handle.close()
-        try:
+    handle = tempfile.NamedTemporaryFile(prefix="expense-form-", suffix=path.suffix, dir=path.parent, delete=False)
+    temp_path = Path(handle.name)
+    handle.close()
+    try:
+        with zipfile.ZipFile(path, "r") as source:
+            if worksheet_name not in source.namelist():
+                raise ValueError(f"Worksheet XML not found for formula cache refresh: {worksheet_name}")
             with zipfile.ZipFile(temp_path, "w") as target:
                 for item in source.infolist():
                     data = source.read(item.filename)
@@ -599,10 +599,10 @@ def patch_formula_caches(path, sheet_index, caches):
                                 raise ValueError(f"Formula cell not found while refreshing cache: {cell_ref}")
                         data = xml.encode("utf-8")
                     target.writestr(item, data)
-            temp_path.replace(path)
-        except Exception:
-            temp_path.unlink(missing_ok=True)
-            raise
+        temp_path.replace(path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 def build_expense_form(manifest, dirs):
