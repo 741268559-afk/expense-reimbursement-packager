@@ -1,0 +1,30 @@
+name: Cross-platform tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -c "import compileall; raise SystemExit(0 if compileall.compile_dir('scripts', quiet=1) else 1)"
+      - run: python scripts/check_readiness.py --out "${{ runner.temp }}/readiness.json"
+      - run: python scripts/platform_smoke_test.py
+      - run: python scripts/self_test.py --out "${{ runner.temp }}/expense-reimbursement-self-test"
+      - run: python scripts/build_release_packages.py --out "${{ runner.temp }}/dist"
