@@ -32,6 +32,16 @@
 
 需要 Python 3.10 或更高版本。下载或克隆仓库后，使用同一个跨平台初始化命令：
 
+国内网络可优先使用 [GitCode 仓库](https://gitcode.com/gcw_Px18Z9ik/expense-reimbursement-packager) 和 [v1.3.0 下载页](https://gitcode.com/gcw_Px18Z9ik/expense-reimbursement-packager/releases/v1.3.0)：
+
+```bash
+git clone https://gitcode.com/gcw_Px18Z9ik/expense-reimbursement-packager.git
+cd expense-reimbursement-packager
+python scripts/bootstrap.py
+```
+
+GitHub 源仓库安装方式：
+
 ```bash
 git clone https://github.com/741268559-afk/expense-reimbursement-packager.git
 cd expense-reimbursement-packager
